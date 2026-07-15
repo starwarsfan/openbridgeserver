@@ -101,6 +101,7 @@ async def app(mosquitto_port):
     """
     # Isolate the test from any host config.yaml in the CWD — the fixture
     # constructs Settings explicitly and must not merge external config.
+    _orig_obs_config = os.environ.get("OBS_CONFIG")
     os.environ["OBS_CONFIG"] = os.path.join(tempfile.gettempdir(), "obs_nonexistent_test_config.yaml")
 
     from obs.config import (
@@ -110,6 +111,7 @@ async def app(mosquitto_port):
         SecuritySettings,
         Settings,
         override_settings,
+        reset_settings,
     )
 
     db_file = tempfile.NamedTemporaryFile(mode="w", suffix=".db", delete=False, prefix="obs_test_db_")
@@ -160,6 +162,7 @@ async def app(mosquitto_port):
         ("obs.core.write_router", "reset_write_router"),
         ("obs.core.mqtt_client", "reset_mqtt_client"),
         ("obs.history.factory", "reset_history_plugin"),
+        ("obs.message_archive", "reset_message_archive_store"),
         ("obs.ringbuffer.ringbuffer", "reset_ringbuffer"),
         ("obs.core.registry", "reset_registry"),
         ("obs.core.event_bus", "reset_event_bus"),
@@ -181,6 +184,9 @@ async def app(mosquitto_port):
         db_path.replace(".db", "_ringbuffer.db"),
         db_path.replace(".db", "_ringbuffer.db-wal"),
         db_path.replace(".db", "_ringbuffer.db-shm"),
+        os.path.join(os.path.dirname(db_path), "archives", "messages.sqlite3"),
+        os.path.join(os.path.dirname(db_path), "archives", "messages.sqlite3-wal"),
+        os.path.join(os.path.dirname(db_path), "archives", "messages.sqlite3-shm"),
         allowlist_path,
     ]
     for cleanup_path in cleanup_paths:
@@ -188,6 +194,14 @@ async def app(mosquitto_port):
             os.unlink(cleanup_path)
         except OSError:
             pass
+
+    # Restore settings singleton and OBS_CONFIG env var so unit tests that run
+    # after the integration suite (in a full `pytest tests/` run) see a clean state.
+    reset_settings()
+    if _orig_obs_config is None:
+        os.environ.pop("OBS_CONFIG", None)
+    else:
+        os.environ["OBS_CONFIG"] = _orig_obs_config
 
 
 @pytest_asyncio.fixture(scope="session")

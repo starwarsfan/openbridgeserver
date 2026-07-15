@@ -1,6 +1,7 @@
 # open bridge multiprotocol ai server
 
-![**open bridge server** Logo](logo/obs_logo_dark.svg)
+![**open bridge server** Logo](logo/obs_logo_light.svg#gh-light-mode-only)
+![**open bridge server** Logo](logo/obs_logo_dark.svg#gh-dark-mode-only)
 
 ![Version](https://img.shields.io/github/v/release/abeggled/openbridgeserver?style=for-the-badge)
 [![Tests][tests-badge]][tests]
@@ -70,15 +71,27 @@ Das LXC-Template enthält ein vollständiges Ubuntu 26.04-System mit **open brid
 
 **Schritt 1 — Template herunterladen**
 
-1. Auf der [Release-Seite](../../releases/latest) die URL der `.tar.zst`-Datei sowie den SHA512-Hash aus dem Abschnitt **LXC Template** kopieren.
+1. Auf der [Release-Seite](../../releases/latest) die Assets aufklappen und via rechter Maustaste die URL der `.tar.zst`-Datei der gewünschten Architektur kopieren:
+
+   ![ProxmoxDownloadFromURL](docs/Release-Assets.png)
+
 2. In der Proxmox-Weboberfläche zu **Datacenter → Storage → local → CT Templates** navigieren.
 3. **Download from URL** klicken.
 4. Die kopierte URL einfügen und auf **Query URL** klicken.
-5. Als Hash-Algorithmus **SHA512** auswählen.
-6. Den kopierten Hash einfügen.
-7. Auf **Download** klicken.
+5. Wenn nicht bereits aktiviert, im Popup unten rechts **Advanced** aktivieren.
+6. Als Hash-Algorithmus **SHA256** auswählen.
+7. Auf der [Release-Seite](../../releases/latest) im Abschnitt **Checksums** via Copy-Button die Checksumme des gewünschten Templates kopieren:
 
-![ProxmoxDownloadFromURL](docs/ProxmoxDownloadFromURL.png)
+   ![ProxmoxDownloadFromURL](docs/Release-Asset-Checksums.png)
+
+   Achtung: Wenn die Checksummen direkt aus der Spalte neben den Assets kopiert wurden, muss der Prefix `SHA256:` entfernt werden, da Proxmox diesen nicht erwartet!
+8. Zurück auf der Proxmox-Weboberfläche den kopierten Hash unter **Checksum** einfügen.
+9. Das sollte jetzt beispielsweise so aussehen:
+
+   ![ProxmoxDownloadFromURL](docs/ProxmoxDownloadFromURL.png)
+
+10. Auf **Download** klicken.
+
 
 **Schritt 2 — Container erstellen**
 
@@ -134,6 +147,9 @@ mqtt:
 database:
   path: /data/obs.db      # Datenbankdatei
 
+message_archive:
+  path: /data/archives/messages.sqlite3  # separate Archiv-DB für Meldungsarchive
+
 ringbuffer:
   storage: file               # Änderungsprotokoll: file-only (Datei)
   max_entries: 10000          # Maximale Anzahl Einträge
@@ -150,6 +166,40 @@ security:
 ```
 
 > **Hinweis:** Der `mqtt`-Abschnitt betrifft den **internen** Mosquitto-Broker. Externe MQTT-Broker werden als separate Adapter-Instanzen eingerichtet (siehe [MQTT-Adapter](#mqtt-adapter-externer-broker)).
+
+### Offline-Administration mit `obs-admin`
+
+Für Support- und Fehlerfälle gibt es ein Offline-CLI, das direkt auf die SQLite-Konfigurationsdatenbank zugreift und keinen laufenden OBS-HTTP-Server benötigt.
+
+Im LXC-Template wird der Befehl direkt im Container ausgeführt:
+
+```bash
+obs-admin status
+obs-admin db info
+obs-admin adapters list
+obs-admin adapters disable <instanz-id-oder-name>
+obs-admin adapters enable <instanz-id-oder-name>
+obs-admin bindings list --adapter <instanz-id-oder-name>
+obs-admin bindings disable <binding-id>
+obs-admin loglevel set DEBUG
+obs-admin support-package create --output /tmp/obs-support.json
+```
+
+Im Docker-Betrieb wird der Befehl auf dem Host im OBS-Container ausgeführt, zum Beispiel:
+
+```bash
+docker compose exec obs obs-admin status
+docker compose exec obs obs-admin adapters disable <instanz-id-oder-name>
+```
+
+Falls die Datenbank nicht am normalen Pfad liegt, kann sie explizit angegeben werden:
+
+```bash
+obs-admin --db /data/obs.db adapters list --json
+obs-admin --db /data/obs.db db backup --output /var/backups/obs/
+```
+
+Schreibende Befehle erzeugen standardmäßig vor der Änderung ein SQLite-Backup neben der Datenbank. Das Offline-Supportpaket verwendet dieselbe zentrale Sanitizing-Logik wie die Support-API und redigiert Secrets, Tokens, Passwörter, Endpunkte und vollständige Pfade.
 
 ### URL-Ziel-Allowlist für interne Dienste
 
@@ -286,7 +336,7 @@ Optional: eine Tabelle, die Rohwerte auf andere Werte abbildet — nützlich z. 
 { "value_map": { "0": "Aus", "1": "Ein", "2": "Standby" } }
 ```
 
-Der Schlüssel ist immer ein String (der Rohwert wird intern umgewandelt). Gibt es keinen passenden Eintrag, wird der Originalwert unverändert weitergegeben. `value_map` wird nach `value_formula` angewendet.
+Der Schlüssel ist immer ein String (der Rohwert wird intern umgewandelt). Die Zuordnung prüft zuerst den exakten Schlüssel und danach ohne Beachtung der Gross-/Kleinschreibung, sodass `OFF` auch einen Eintrag wie `"off"` trifft. Gibt es keinen passenden Eintrag, wird der Originalwert unverändert weitergegeben. `value_map` wird nach `value_formula` angewendet.
 
 **Sendefilter** (nur für DEST/BOTH, werden der Reihe nach geprüft):
 
@@ -430,7 +480,8 @@ Der Parameter `q` durchsucht sowohl den Namen als auch die ID des Datenpunkts.
 - Pagination über `pagination.limit` + `pagination.offset`, Sortierung über `sort.field` (`id|ts`) und `sort.order` (`asc|desc`).
 - Das versionierte Metadatenmodell ist dokumentiert in `docs/ringbuffer-metadata-model-v1.md` (`metadata_version: 1`).
 
-`POST /api/v1/ringbuffer/export/csv` nutzt denselben Request-Body wie `/query`, exportiert aber immer die vollständige gefilterte Ergebnismenge (Pagination der UI wird ignoriert).  
+`POST /api/v1/ringbuffer/export/csv` nutzt denselben Request-Body wie `/query`, exportiert aber immer die vollständige gefilterte Ergebnismenge (Pagination der UI wird ignoriert).
+
 CSV-Spalten: `id`, `ts`, `datapoint_id`, `name`, `topic`, `old_value_json`, `new_value_json`, `source_adapter`, `quality`, `metadata_version`, `metadata_json`.
 
 ---
@@ -560,7 +611,9 @@ Der Logik-Editor ermöglicht das visuelle Erstellen von Automatisierungsregeln �
 
 Der Graph kann auch manuell über den **▶ Ausführen**-Button gestartet werden.
 
-**Zustände** (Hysterese, Statistik, Betriebsstunden, Min/Max-Tracker, Verbrauchszähler) werden in der Datenbank gespeichert und überleben einen Neustart.
+**Zustände** (Hysterese, Speicher, Statistik, Betriebsstunden, Min/Max-Tracker, Verbrauchszähler) werden in der Datenbank gespeichert und überleben einen Neustart.
+
+Direkte Rückkopplungen werden im Editor validiert und beim Verbinden oder Speichern blockiert. Für kontrollierte Rückkopplungen wird ein **Speicher**-Block als explizite Tick-Grenze verwendet: Er gibt den Wert aus dem vorherigen Graph-Lauf aus und speichert den aktuellen Eingang für den nächsten Lauf.
 
 ---
 
@@ -580,8 +633,13 @@ Der Graph kann auch manuell über den **▶ Ausführen**-Button gestartet werden
 | **ODER** | A, B | Aus | Wahr wenn **mindestens ein** Eingang wahr ist. |
 | **NICHT** | Ein | Aus | Kehrt den Eingang um. |
 | **EXKLUSIV-ODER** | A, B | Aus | Wahr wenn **genau ein** Eingang wahr ist. |
+| **Speicher** | Ein, Zurücksetzen | Aus | Gibt den gespeicherten Wert aus dem vorherigen Graph-Lauf aus und speichert den aktuellen Eingang für den nächsten Lauf. Für kontrollierte Rückkopplungen verwenden. |
 | **Vergleich** | A, B | Ergebnis | Vergleicht zwei Werte. Auswahl: `>` `<` `=` `>=` `<=` `≠` |
 | **Hysterese** | Wert | Aus | Schaltet ein wenn der Wert über „Schwelle EIN" steigt, und erst wieder aus wenn er unter „Schwelle AUS" fällt. Verhindert schnelles Hin- und Herschalten. |
+| **Entscheidung** | Wert | 2-n boolesche Ausgänge | Prüft mehrere unabhängige Bedingungen gegen einen Eingang. Jeder Ausgang hat eigenen Namen und eigene Bedingung; mehrere Ausgänge können gleichzeitig wahr sein. |
+| **Zuordnung** | Wert | Ergebnis | Prüft geordnete Regeln und gibt das Ergebnis der ersten passenden Regel aus. Ausgangstyp wählbar als Bool, Int, Float oder String; optionaler Sonst-Wert für nicht passende Eingänge. |
+
+Entscheidung und Zuordnung teilen dieselben Bedingungsoperatoren: gleich, ungleich, größer/kleiner als, größer/kleiner oder gleich, Wertebereich, Textvergleich, enthält, beginnt mit, endet mit und regulärer Ausdruck.
 
 #### Datenpunkt
 
@@ -1184,6 +1242,37 @@ Verbindet sich mit einem **externen** MQTT-Broker (getrennt vom internen Mosquit
 
 ---
 
+### MESSAGE-Adapter
+
+Sendet Benachrichtigungen, wenn sich ein verknüpfter Datenpunkt ändert und die Bedingung der Verknüpfung erfüllt ist. Der Adapter ist als lesende Verknüpfung (`SOURCE`) konfiguriert, weil er Wertänderungen beobachtet und daraus Nachrichten auslöst.
+
+**Unterstützte Provider:**
+
+| Provider | Instanz-Felder | Ziel-Felder |
+|---|---|---|
+| `pushover` | `api_token` | `user_key` |
+| `telegram` | `bot_token` | `chat_id` |
+| `seven.io` | `api_key`, optional `sender` | `to`, `channel` (`sms`/`voice`) |
+
+**Verknüpfungs-Konfiguration:**
+
+| Feld | Beschreibung |
+|---|---|
+| `operator` | Bedingung: `any`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `contains`, `contains not`, `starts with`, `ends with` |
+| `compare_value` | Vergleichswert; bei `any` nicht nötig |
+| `message` | Nachrichtenvorlage mit Platzhaltern |
+| `title` | Optionaler Nachrichtentitel |
+| `providers` | Liste aus Provider und Zielname, an die gesendet wird |
+| `send_on_change` | Sendet nur beim Wechsel in den erfüllten Zustand; bei `any` nur bei geändertem Wert |
+| `cooldown_seconds` | Mindestabstand zwischen zwei gesendeten Nachrichten |
+| `enabled` | Aktiviert/deaktiviert die Verknüpfung |
+
+Platzhalter in der Nachricht: `###DP###` = Wert, `###DPU###` = Einheit, `###DPN###` = Datenpunktname, `###DPI###` = Datenpunkt-ID, `###TS###` = Zeitstempel.
+
+> **Hinweis:** Signal wird im MESSAGE-Adapter vorerst nicht angeboten, weil dafür ein separater Signal-Gateway-Dienst betrieben werden müsste.
+
+---
+
 ### Home-Assistant-Adapter
 
 Verbindet **open bridge server** bidirektional mit einer Home-Assistant-Instanz. Empfängt Zustandsänderungen in Echtzeit über WebSocket (`state_changed`-Ereignisse) und schreibt Werte über die HA-REST-API (Dienst-Aufrufe).
@@ -1506,7 +1595,7 @@ Das **Grundriss-Widget** ermöglicht es, einen Gebäudegrundriss oder ein Anlage
 
 Im Konfigurations-Panel des Widgets kann ein Bild hochgeladen werden (SVG, PNG oder JPG). Das Bild wird als Base64-Data-URL direkt im Konfig-JSON gespeichert — kein separater Upload-Endpunkt nötig. Bei Dateien über 2 MB erscheint ein Hinweis; für Grundrisse wird **SVG empfohlen**, da es verlustfrei skaliert.
 
-Die **Rotation** des Bildes lässt sich in 90°-Schritten einstellen (0° / 90° / 180° / 270°), um Landscape-Grafiken direkt im Portrait-Modus verwenden zu können. 
+Die **Rotation** des Bildes lässt sich in 90°-Schritten einstellen (0° / 90° / 180° / 270°), um Landscape-Grafiken direkt im Portrait-Modus verwenden zu können.
 
 #### Bereiche (Polygone) zeichnen
 
@@ -1664,10 +1753,12 @@ Versionierte Hooks liegen in `.githooks/`. Um sie in einem Klon zu aktivieren, `
 
 Bei jedem `git push` führt der Hook aus:
 
-- `./scripts/check-i18n-hardcoded-strings.sh`
+- `./tools/check-i18n-hardcoded-strings.sh`
 - `python3 -m ruff check .`
 - `python3 -m ruff format . --check`
 - `pytest tests/ -v --cov=obs --cov-report=xml --cov-report=term --junitxml="${TMPDIR:-/tmp}/openbridge-pre-push-junit.xml"`
+
+Das i18n-Gate prüft geänderte GUI-/Visu-Dateien auf hart codierte sichtbare Texte, Locale-Key-Parität und rohe Übersetzungsausdrücke wie `$t(...)`, die als Template-Text gerendert würden.
 
 Einmalig umgehen:
 

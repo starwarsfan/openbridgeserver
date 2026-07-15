@@ -16,13 +16,24 @@ async function mountBindingForm(props) {
   }
   const adapterApi = {
     listInstances: vi.fn().mockResolvedValue({
-      data: [{ id: 'mqtt-inst-1', name: 'MQTT Test', adapter_type: 'MQTT' }],
+      data: [
+        { id: 'mqtt-inst-1', name: 'MQTT Test', adapter_type: 'MQTT' },
+        {
+          id: 'message-inst-1',
+          name: 'Notifications',
+          adapter_type: 'MESSAGE',
+          config: { providers: { pushover: { enabled: true, targets: { phone: {} } } } },
+        },
+      ],
     }),
     knxDpts: vi.fn().mockResolvedValue({ data: [] }),
     mqttBrowseTopics: vi.fn().mockResolvedValue({ data: [] }),
     mqttSamplePayload: vi.fn().mockResolvedValue({ data: { payload: '{}' } }),
   }
-  vi.doMock('@/api/client', () => ({ dpApi, adapterApi }))
+  const messageArchivesApi = {
+    list: vi.fn().mockResolvedValue({ data: { archives: [] } }),
+  }
+  vi.doMock('@/api/client', () => ({ dpApi, adapterApi, messageArchivesApi }))
   const mod = await import('@/components/datapoints/BindingForm.vue')
   const wrapper = mount(mod.default, {
     props: {
@@ -60,5 +71,15 @@ describe('BindingForm', () => {
     })
     expect(wrapper.find('[data-testid="input-mqtt-topic"]').exists()).toBe(true)
     expect(wrapper.find('#mqtt_retain').exists()).toBe(true)
+  })
+
+  it('zeigt MESSAGE-Felder ohne Richtungsauswahl und ohne Transform-Tabs', async () => {
+    const { wrapper } = await mountBindingForm({})
+    await wrapper.find('[data-testid="select-adapter-instance"]').setValue('message-inst-1')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('MESSAGE Binding')
+    expect(wrapper.find('[data-testid="select-direction"]').exists()).toBe(false)
+    expect(wrapper.findAll('.tab-btn').map(button => button.text())).toEqual(['Verbindung'])
   })
 })

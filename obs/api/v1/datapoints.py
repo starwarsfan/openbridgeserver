@@ -20,6 +20,7 @@ from pydantic import BaseModel, field_serializer
 
 from obs.api.auth import get_admin_user, get_current_user, optional_current_user
 from obs.api.v1.datapoint_config import collect_datapoint_ids_from_config
+from obs.api.v1.services.knx_traceability import KnxDatapointContextOut, build_datapoint_knx_context
 from obs.api.v1.sessions import validate_session
 from obs.core.event_bus import DataValueEvent, get_event_bus
 from obs.core.registry import get_registry
@@ -249,6 +250,17 @@ async def get_datapoint(
     return _enrich(dp)
 
 
+@router.get("/{dp_id}/knx-context", response_model=KnxDatapointContextOut)
+async def get_datapoint_knx_context(
+    dp_id: uuid.UUID,
+    _user: str = Depends(get_current_user),
+    db: Database = Depends(get_db),
+) -> KnxDatapointContextOut:
+    if get_registry().get(dp_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"DataPoint {dp_id} not found")
+    return await build_datapoint_knx_context(dp_id, db)
+
+
 @router.patch("/{dp_id}", response_model=DataPointOut)
 async def update_datapoint(
     dp_id: uuid.UUID,
@@ -285,7 +297,7 @@ async def update_datapoint(
             quality = "uncertain"
 
     # --- Mutation phase (all validation passed) ---
-    # value=None in model_copy ensures exclude_none=True in reg.update() drops it —
+    # value=None in model_copy keeps value updates out of DataPoint metadata;
     # DataPoint has no value field.
     dp = await reg.update(dp_id, body.model_copy(update={"value": None}))
 
@@ -406,7 +418,8 @@ async def write_value(
     - Kein Auth-Kontext → 401
     """
     reg = get_registry()
-    if reg.get(dp_id) is None:
+    dp = reg.get(dp_id)
+    if dp is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"DataPoint {dp_id} not found")
 
     if user is None:
@@ -432,9 +445,14 @@ async def write_value(
         elif access not in ("public",):
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
+    try:
+        value = _coerce_value_for_type(body.value, dp.data_type)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
+
     event = DataValueEvent(
         datapoint_id=dp_id,
-        value=body.value,
+        value=value,
         quality="good",
         source_adapter="api",
     )

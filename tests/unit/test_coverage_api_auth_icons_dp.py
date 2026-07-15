@@ -1569,6 +1569,28 @@ class TestWriteValue:
         bus_mock.publish.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_write_value_coerces_temporal_value_before_publish(self, monkeypatch):
+        from datetime import time
+
+        from obs.api.v1.datapoints import WriteValueIn
+
+        dp = _DpStub(data_type="TIME")
+        reg = _RegistryStub(dps=[dp])
+        monkeypatch.setattr(dp_api, "get_registry", lambda: reg)
+
+        bus_mock = MagicMock()
+        bus_mock.publish = AsyncMock()
+        monkeypatch.setattr(dp_api, "get_event_bus", lambda: bus_mock)
+
+        request = MagicMock()
+        db = _DbStub()
+        body = WriteValueIn(value="10:30:00")
+        await dp_api.write_value(dp_id=dp.id, body=body, request=request, user="admin", db=db)
+
+        event = bus_mock.publish.await_args.args[0]
+        assert event.value == time(10, 30, 0)
+
+    @pytest.mark.asyncio
     async def test_write_value_not_found_raises_404(self, monkeypatch):
         from obs.api.v1.datapoints import WriteValueIn
 
@@ -1768,6 +1790,16 @@ class TestCreateBinding:
         body = AdapterBindingCreate(adapter_instance_id=inst_id, direction="SOURCE")
         result = await bindings_api.create_binding(dp_id=dp.id, body=body, _user="admin", db=db)
         assert result.adapter_type == "MQTT"
+
+    def test_validate_message_binding_rejects_non_source_direction(self):
+        with pytest.raises(HTTPException) as exc:
+            bindings_api._validate_adapter_binding(
+                "MESSAGE",
+                "DEST",
+                {"providers": [{"provider": "pushover", "target": "default"}]},
+            )
+
+        assert exc.value.status_code == 422
 
 
 # ---------------------------------------------------------------------------

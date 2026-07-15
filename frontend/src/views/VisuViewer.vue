@@ -29,6 +29,7 @@ import '@/widgets/Chart/index'
 import '@/widgets/Link/index'
 import '@/widgets/WidgetRef/index'
 import '@/widgets/Info/index'
+import '@/widgets/MessageArchive/index'
 import '@/widgets/Text/index'
 import '@/widgets/Zeitschaltuhr/index'
 import '@/widgets/Rolladen/index'
@@ -197,6 +198,13 @@ function gridStyle(w: WidgetInstance) {
     height:     `${w.h * ROW_H.value}px`,
   }
 }
+
+function widgetChrome(w: WidgetInstance): string {
+  const v = w.config?.chrome_variant
+  if (v === 'flat')    return 'overflow-hidden'
+  if (v === 'outline') return 'rounded-xl border border-gray-300 dark:border-gray-600 overflow-hidden'
+  return 'bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden'
+}
 </script>
 
 <template>
@@ -254,7 +262,7 @@ function gridStyle(w: WidgetInstance) {
         <div
           v-for="w in widgets"
           :key="w.id"
-          class="bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+          :class="widgetChrome(w)"
           :style="gridStyle(w)"
           :data-dp="w.datapoint_id"
           :data-widget-id="w.id"
