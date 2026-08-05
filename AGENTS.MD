@@ -120,15 +120,31 @@ Danach läuft der i18n-Gate automatisch vor jedem `git push`.
 
 ## Test Coverage Gate (verbindlich)
 
-**Jede neue Zeile Code muss durch Tests abgedeckt sein.** Codecov prüft die *Patch Coverage* —
-d.h. ob jede im Diff hinzugefügte Zeile durch die Testsuite ausgeführt wird. Das ist strenger als
-nur die Gesamtabdeckung zu halten: eine neue Funktion, die bestehende Zeilen nicht senkt, aber
-selbst ungetestet bleibt, fällt durch dieses Gate.
+**Jede neue Zeile Code muss durch Tests abgedeckt sein — und jeder neue Zweig einer Bedingung
+ebenfalls.** Codecov prüft die *Patch Coverage* auf zwei Ebenen, die beide grün sein müssen:
+
+1. **Line Coverage** — wurde jede im Diff hinzugefügte Zeile mindestens einmal ausgeführt?
+2. **Branch Coverage** — wurde bei jeder Bedingung *auf* einer geänderten Zeile jeder mögliche
+   Ausgang mindestens einmal durchlaufen?
+
+Das ist strenger als nur die Gesamtabdeckung zu halten: eine neue Funktion, die bestehende Zeilen
+nicht senkt, aber selbst ungetestet bleibt, fällt durch dieses Gate — und genauso eine Zeile, die
+zwar *ausgeführt* wurde, deren `if`/`else`, `try`/`finally`, `||`/`??`/Ternary oder Mehrfach-Guard
+(`a || b || c`) aber nur auf einer Seite getestet wurde. **Codecov markiert diesen zweiten Fall
+als „partial" und lässt das Gate genauso fehlschlagen wie eine komplett fehlende Zeile — obwohl
+lokale Line-Coverage-Reports (`--cov-report=term-missing`, Vitest-Tabellenausgabe) das oft nicht
+zeigen, weil sie primär Line- statt Branch-Daten hervorheben.** Ein lokal grüner Lauf ist daher
+keine Garantie für einen grünen `codecov/patch`-Check — insbesondere wenn bestehender Code neu in
+`try`/`if` eingepackt wird (das re-indentiert die Zeilen, wodurch sie im Diff als „neu" zählen und
+ihre ggf. schon vorher unvollständige Branch-Abdeckung erstmals gegen das Gate zählt).
 
 - **Neuer Code → neue Tests im selben Commit.** Jede neue API-Route, jeder neue Adapter, jede
   neue Hilfsfunktion braucht zugehörige Tests (Unit oder Integration), die genau die neuen Zeilen
-  ausführen.
-- **Refactorings** dürfen weder die Gesamtabdeckung noch die Patch Coverage senken.
+  ausführen — und bei jeder neuen/geänderten Bedingung Tests für **beide Seiten** (true/false,
+  vorhanden/fehlend, Guard greift/greift nicht).
+- **Refactorings** dürfen weder die Gesamtabdeckung noch die Patch Coverage (Line **und** Branch)
+  senken. Das Einpacken von bestehendem Code in ein neues `try`/`if`/`??` zählt als Refactoring in
+  diesem Sinne — vorher prüfen, ob die betroffenen Zeilen schon alle Zweige abgedeckt hatten.
 - **Vor jedem Push mit Backend-Änderungen** Coverage prüfen:
 
 ```bash
@@ -139,6 +155,21 @@ tools/with-venv pytest tests/integration --cov=obs --cov-append --cov-report=ter
 ```
 
 Wenn neue Zeilen im Report unter „Missing" auftauchen: Tests ergänzen, nicht pushen.
+
+- **Vor jedem Push mit GUI-Änderungen** ebenso `cd gui && npm run test:coverage` laufen lassen.
+  Für Branch-Detail auf einzelne Zeilen (nicht nur die aggregierte %-Spalte) die generierte
+  `gui/coverage/lcov.info` auswerten — `BRDA:<line>,<block>,<branch>,<hits>`-Zeilen mit `hits == 0`
+  markieren einen ungetesteten Zweig genau dieser Zeile:
+
+```bash
+awk '/SF:.*<Dateipfad>$/{f=1} f && /^BRDA:/{print} f && /end_of_record/{f=0}' gui/coverage/lcov.info \
+  | awk -F, '$4 == 0'
+```
+
+- **Bei einem bereits offenen PR**, wenn unklar ist, ob eine Änderung das Gate reißt: den
+  tatsächlichen `codecov/patch`-Check auf dem PR prüfen (`gh pr checks <nr>`), nicht nur lokale
+  Reports vertrauen — siehe oben, lokal und Codecov können bei Branch-Partials auseinanderlaufen.
+
 Gilt für Haupt-Sessions **und** für Subagents — bitte explizit in den Subagent-Prompt schreiben.
 
 ## Local Development Setup
@@ -582,6 +613,46 @@ Mosquitto is installed as a systemd service alongside OBS. Key paths:
 
 OBS reloads Mosquitto after passwd file changes via `OBS_MOSQUITTO__RELOAD_COMMAND=systemctl reload mosquitto`.
 
+#### owserver (1-Wire) in the LXC template — issue #1040
+
+`owserver` (the OWFS 1-Wire bus server the `ONEWIRE` adapter talks to via `pyownet`, see #6) is
+installed alongside Mosquitto but, unlike Mosquitto, is **opt-in**: an idle, unconfigured `owserver`
+wastes resources on the small hosts OBS often runs on, so the packaged `owserver.service` only
+actually starts once an admin has configured a 1-Wire bus master.
+
+| Path | Purpose |
+|---|---|
+| `/etc/systemd/system/owserver.service.d/override.conf` | Drop-in that gates the packaged unit — does not replace its `ExecStart=`, so package upgrades keep working |
+| `scripts/obs-onewire-should-run.sh` | `ExecCondition=` — exits 0 only if `OBS_ONEWIRE__USB_ALL=true` or `OBS_ONEWIRE__PBM_DEVICES` is set in `/etc/obs.env` |
+| `scripts/obs-onewire-configure.sh` | `ExecStartPre=` — (re)generates `/etc/owfs.conf` from those same env vars on every start attempt |
+| `/etc/obs.env` | Same file as the MQTT credentials; `OBS_ONEWIRE__*` lines ship commented out |
+
+Both scripts are shared verbatim with the Docker sidecar image (`tools/docker/owserver.Dockerfile`)
+— one script, two consumers. To enable 1-Wire on an installed LXC: uncomment/add the relevant
+`OBS_ONEWIRE__*` lines in `/etc/obs.env`, then `systemctl restart owserver` (systemd re-evaluates
+`ExecCondition` on every start attempt, so there is no first-boot-only flag file to worry about).
+
+**Env vars:**
+- `OBS_ONEWIRE__USB_ALL=true` → `server: usb = all` (plain USB busmasters, e.g. DS9490)
+- `OBS_ONEWIRE__PBM_DEVICES=/dev/serial/by-id/...` → one `server: pbm = <path>` line per
+  comma-separated entry (ElabNET PBM). Use a stable `/dev/serial/by-id/...` path, not
+  `/dev/ttyUSB0` — the latter can shift across reboots or when other serial devices are attached.
+- `OBS_ONEWIRE__PORT` → optional, defaults to `4304` (owserver's own historical default, matches the
+  `ONEWIRE` adapter's default `port` config field)
+
+**Proxmox host-side USB/serial passthrough** (not automatable from inside the container — hardware
+topology is host-specific): both a `lxc.mount.entry` **and** the matching `lxc.cgroup2.devices.allow`
+cgroup rule are required — the mount alone is not sufficient and this is easy to forget. Confirmed
+against real hardware: a plain USB busmaster needs its `/dev/bus/usb/BBB/DDD` node passed through; the
+ElabNET PBM enumerates as an FTDI serial device and needs its `/dev/serial/by-id/...` path passed
+through (mapped to e.g. `/dev/ttyUSB0` inside the container).
+
+**Docker Compose equivalent:** the `owserver` service in `docker-compose.yml` is gated by a Compose
+profile (`profiles: ["onewire"]`) instead of `ExecCondition`, activated via
+`COMPOSE_PROFILES=onewire`. See the comments in `docker-compose.yml` and `.env.example`.
+
 ### Release Notes
 
 `RELEASENOTES_FOOTER.md` contains an invisible HTML comment `<!-- LXC_INSERT -->` that marks where the LXC checksum block is injected by `lxc-template.yml`. Do not remove this marker.
+
+Within each section of a version's changelog (`### Breaking changes`, `### New features`, `### Fixes`, etc.), entries must be sorted alphabetically by their leading component label (e.g. `Admin GUI/Visu:` before `Logic Engine/Admin GUI:`). When adding a new entry, insert it at the alphabetically correct position rather than appending it at the end.
