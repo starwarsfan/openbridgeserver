@@ -643,7 +643,7 @@ BUILTIN_NODE_TYPES: list[NodeTypeDef] = [
         description="Sendet automatisch alle N Sekunden einen Trigger-Impuls.",
         inputs=[],
         outputs=[_port("trigger", "Trigger", "trigger")],
-        config_schema={"interval_s": {"type": "number", "default": 5.0, "label": "Interval (s)"}},
+        config_schema={"interval_s": {"type": "number", "default": 5.0, "min": 0, "label": "Interval (s)"}},
         color="#b45309",
     ),
     NodeTypeDef(

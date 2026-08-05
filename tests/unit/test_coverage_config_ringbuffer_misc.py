@@ -816,7 +816,7 @@ async def test_import_config_rejects_logic_graph_with_negative_timer_duration(mo
                                 "id": "timer",
                                 "type": "timer_pulse",
                                 "position": {"x": 0, "y": 0},
-                                "data": {"duration_s": -1},
+                                "data": {"interval_s": -1},
                             }
                         ]
                     },
@@ -826,7 +826,7 @@ async def test_import_config_rejects_logic_graph_with_negative_timer_duration(mo
         result = await config_api.import_config(body=body, _user="u", db=db)
 
     assert result.logic_graphs_created == 0
-    assert any("duration_s must be greater than or equal to 0" in error for error in result.errors)
+    assert any("interval_s must be greater than or equal to 0" in error for error in result.errors)
     assert db.committed == []
 
 

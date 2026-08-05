@@ -2186,7 +2186,7 @@
         "delay_s": "Verzögerung (s)"
       },
       "timer_pulse": {
-        "duration_s": "Dauer (s)"
+        "interval_s": "Intervall (s)"
       },
       "value_sequence": {
         "run_mode": "Ausführung",

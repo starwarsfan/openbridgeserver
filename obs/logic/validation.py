@@ -8,7 +8,7 @@ from obs.logic.models import FlowData
 
 _DURATION_FIELDS = {
     "timer_delay": ("delay_s", 0),
-    "timer_pulse": ("duration_s", 0),
+    "timer_pulse": ("interval_s", 0),
     "api_client": ("timeout_s", 1),
 }
 

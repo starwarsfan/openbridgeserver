@@ -58,7 +58,7 @@ def test_generic_notification_replaces_legacy_nodes_in_palette_metadata():
 
 def test_timer_durations_are_non_negative():
     assert _node_type("timer_delay").config_schema["delay_s"]["min"] == 0
-    assert _node_type("timer_pulse").config_schema["duration_s"]["min"] == 0
+    assert _node_type("timer_pulse").config_schema["interval_s"]["min"] == 0
     assert _node_type("api_client").config_schema["timeout_s"]["min"] == 1
     assert _node_type("and").config_schema["input_count"]["type"] == "integer"
     assert _node_type("or").config_schema["input_count"]["type"] == "integer"
@@ -69,7 +69,7 @@ def test_timer_durations_are_non_negative():
     ("node_type", "data", "message"),
     [
         ("timer_delay", {"delay_s": -1}, "greater than or equal to 0"),
-        ("timer_pulse", {"duration_s": "-0.5"}, "greater than or equal to 0"),
+        ("timer_pulse", {"interval_s": "-0.5"}, "greater than or equal to 0"),
         ("api_client", {"timeout_s": 0}, "greater than or equal to 1"),
         ("api_client", {"timeout_s": "bad"}, "must be a number"),
         ("api_client", {"timeout_s": " "}, "must be a number"),
@@ -93,7 +93,7 @@ def test_write_validation_rejects_invalid_durations(node_type, data, message):
     ("node_type", "data"),
     [
         ("timer_delay", {"delay_s": 0}),
-        ("timer_pulse", {"duration_s": "1.5"}),
+        ("timer_pulse", {"interval_s": "1.5"}),
         ("timer_delay", {"delay_s": ""}),
         ("timer_delay", {"delay_s": None}),
         ("timer_cron", {"delay_s": -1}),
@@ -150,7 +150,7 @@ def test_persisted_negative_timer_durations_remain_readable():
                             "id": "timer",
                             "type": "timer_pulse",
                             "position": {"x": 0, "y": 0},
-                            "data": {"duration_s": -1},
+                            "data": {"interval_s": -1},
                         }
                     ]
                 }
@@ -160,4 +160,4 @@ def test_persisted_negative_timer_durations_remain_readable():
         }
     )
 
-    assert graph.flow_data.nodes[0].data["duration_s"] == -1
+    assert graph.flow_data.nodes[0].data["interval_s"] == -1
