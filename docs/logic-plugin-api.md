@@ -112,7 +112,7 @@ from obs.logic.plugin_api import (
 
 ```python
 class LogicNodePlugin(ABC):
-    type_name: str          # unique identifier, e.g. "shadow_control"
+    type_name: str  # unique identifier, e.g. "shadow_control"
 
     @classmethod
     @abstractmethod
@@ -159,13 +159,13 @@ Called every time the graph executes and this node is reached. Must be **synchro
 
 ```python
 class NodeTypeDef(BaseModel):
-    type: str               # must match LogicNodePlugin.type_name
-    label: str              # display name in the palette
-    category: str           # palette group (see below)
-    description: str = ""   # tooltip text
+    type: str  # must match LogicNodePlugin.type_name
+    label: str  # display name in the palette
+    category: str  # palette group (see below)
+    description: str = ""  # tooltip text
     inputs: list[NodeTypePort] = []
     outputs: list[NodeTypePort] = []
-    config_schema: dict[str, Any] = {}   # JSON schema for node data fields
+    config_schema: dict[str, Any] = {}  # JSON schema for node data fields
     color: str = "#475569"  # hex colour of the node header
 ```
 
@@ -190,9 +190,9 @@ Use one of the existing categories to have your block grouped with related built
 
 ```python
 class NodeTypePort(BaseModel):
-    id: str             # internal handle ID used in edges and evaluate() inputs/outputs
-    label: str          # display label on the node
-    type: str = "value" # "value" (default) or "trigger"
+    id: str  # internal handle ID used in edges and evaluate() inputs/outputs
+    label: str  # display label on the node
+    type: str = "value"  # "value" (default) or "trigger"
 ```
 
 Port IDs must be unique within the inputs list and within the outputs list. They are used as keys in the `inputs` dict passed to `evaluate()` and in the `outputs` dict you return.
@@ -202,12 +202,12 @@ Port IDs must be unique within the inputs list and within the outputs list. They
 A flat dict where each key is a field name and the value is a descriptor:
 
 ```python
-config_schema={
+config_schema = {
     "threshold": {
         "type": "number",
         "default": 20,
-        "min": 0,     # optional
-        "max": 90,    # optional
+        "min": 0,  # optional
+        "max": 90,  # optional
         "label": "Min elevation (\u00b0)",
     },
     "mode": {
@@ -238,13 +238,19 @@ The executor does **not** coerce values before passing them to `evaluate()`. Inp
 
 ```python
 def _to_num(v, default=0.0):
-    if v is None: return default
-    if isinstance(v, bool): return 1.0 if v else 0.0
-    try: return float(v)
-    except (TypeError, ValueError): return default
+    if v is None:
+        return default
+    if isinstance(v, bool):
+        return 1.0 if v else 0.0
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
 
 def _to_bool(v):
-    if v is None: return False
+    if v is None:
+        return False
     if isinstance(v, str):
         return v.strip().lower() not in ("0", "false", "no", "off", "")
     return bool(v)
@@ -276,21 +282,27 @@ class ShadowControl(LogicNodePlugin):
             description="Berechnet die Jalousieposition aus Sonnenh\u00f6he und Innentemperatur.",
             inputs=[
                 NodeTypePort(id="sun_elevation", label="Sonnenh\u00f6he (\u00b0)"),
-                NodeTypePort(id="indoor_temp",   label="Innentemperatur"),
-                NodeTypePort(id="override",      label="Override aktiv"),
-                NodeTypePort(id="override_pos",  label="Override Position"),
+                NodeTypePort(id="indoor_temp", label="Innentemperatur"),
+                NodeTypePort(id="override", label="Override aktiv"),
+                NodeTypePort(id="override_pos", label="Override Position"),
             ],
             outputs=[
                 NodeTypePort(id="position", label="Position (0\u2013100)"),
-                NodeTypePort(id="active",   label="Automatik aktiv"),
+                NodeTypePort(id="active", label="Automatik aktiv"),
             ],
             config_schema={
                 "threshold_elevation": {
-                    "type": "number", "default": 20, "min": 0, "max": 90,
+                    "type": "number",
+                    "default": 20,
+                    "min": 0,
+                    "max": 90,
                     "label": "Mindest-Sonnenh\u00f6he (\u00b0)",
                 },
                 "temp_threshold": {
-                    "type": "number", "default": 22, "min": 10, "max": 40,
+                    "type": "number",
+                    "default": 22,
+                    "min": 10,
+                    "max": 40,
                     "label": "Aktivierung ab Innentemperatur (\u00b0C)",
                 },
             },
@@ -310,9 +322,9 @@ class ShadowControl(LogicNodePlugin):
             return {"position": pos, "active": False}, state
 
         elevation = _to_num(inputs.get("sun_elevation"))
-        indoor    = _to_num(inputs.get("indoor_temp"), default=999.0)
+        indoor = _to_num(inputs.get("indoor_temp"), default=999.0)
         threshold = float(config.get("threshold_elevation") or 20)
-        temp_th   = float(config.get("temp_threshold") or 22)
+        temp_th = float(config.get("temp_threshold") or 22)
 
         if elevation < threshold or indoor < temp_th:
             return {"position": 0.0, "active": False}, state
@@ -322,14 +334,21 @@ class ShadowControl(LogicNodePlugin):
 
 
 def _to_num(v: Any, default: float = 0.0) -> float:
-    if v is None: return default
-    if isinstance(v, bool): return 1.0 if v else 0.0
-    try: return float(v)
-    except (TypeError, ValueError): return default
+    if v is None:
+        return default
+    if isinstance(v, bool):
+        return 1.0 if v else 0.0
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
 
 def _to_bool(v: Any) -> bool:
-    if v is None: return False
-    if isinstance(v, str): return v.strip().lower() not in ("0", "false", "no", "off", "")
+    if v is None:
+        return False
+    if isinstance(v, str):
+        return v.strip().lower() not in ("0", "false", "no", "off", "")
     return bool(v)
 ```
 
@@ -345,6 +364,7 @@ A single file can register any number of node types:
 class BlockA(LogicNodePlugin):
     type_name = "block_a"
     ...
+
 
 @register_node_type
 class BlockB(LogicNodePlugin):

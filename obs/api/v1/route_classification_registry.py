@@ -22,6 +22,8 @@ type RouteSignature = tuple[str, str]
 PUBLIC_ROUTE_ALLOWLIST: Final[frozenset[RouteSignature]] = frozenset(
     {
         ("GET", "/api/v1/system/health"),
+        # Display formatting for the Visu, which is served to anonymous/PIN users (#1073).
+        ("GET", "/api/v1/system/display-settings"),
     }
 )
 
@@ -72,9 +74,12 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("GET", "/api/v1/adapters/{adapter_type}/config"): "read_live",
     ("GET", "/api/v1/adapters/{adapter_type}/schema"): "read_live",
     ("GET", "/api/v1/auth/apikeys"): "read_live",
+    ("GET", "/api/v1/auth/apikeys/{key_id}/capabilities"): "read_live",
     ("GET", "/api/v1/auth/me"): "read_live",
     ("GET", "/api/v1/auth/users"): "read_live",
     ("GET", "/api/v1/auth/users/{username}"): "read_live",
+    ("GET", "/api/v1/auth/users/{username}/deletion-preflight"): "read_live",
+    ("GET", "/api/v1/authz/principals/{principal_type}/{principal_id:path}/grants"): "read_live",
     ("GET", "/api/v1/camera/proxy"): "read_live",
     ("GET", "/api/v1/config/autobackup/config"): "read_live",
     ("GET", "/api/v1/config/autobackup/list"): "read_live",
@@ -125,6 +130,7 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("GET", "/api/v1/support/debug-log"): "read_live",
     ("GET", "/api/v1/system/adapters"): "read_live",
     ("GET", "/api/v1/system/datatypes"): "read_live",
+    ("GET", "/api/v1/system/display-settings"): "public",
     ("GET", "/api/v1/system/health"): "public",
     ("GET", "/api/v1/system/history/settings"): "read_live",
     ("GET", "/api/v1/system/log-level"): "read_live",
@@ -168,6 +174,7 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("POST", "/api/v1/auth/refresh"): "config_mutation",
     ("POST", "/api/v1/auth/users"): "config_mutation",
     ("POST", "/api/v1/auth/users/{username}/mqtt-password"): "config_mutation",
+    ("POST", "/api/v1/authz/preview"): "read_live",
     ("POST", "/api/v1/config/autobackup/restore/{name}"): "config_mutation",
     ("POST", "/api/v1/config/autobackup/run"): "config_mutation",
     ("POST", "/api/v1/config/import"): "config_mutation",
@@ -191,6 +198,7 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("POST", "/api/v1/logic/graphs"): "config_mutation",
     ("POST", "/api/v1/logic/graphs/import"): "config_mutation",
     ("POST", "/api/v1/logic/graphs/validate"): "read_live",
+    ("GET", "/api/v1/logic/graphs/{graph_id}/run-preflight"): "read_live",
     ("POST", "/api/v1/logic/graphs/{graph_id}/duplicate"): "config_mutation",
     ("POST", "/api/v1/logic/graphs/{graph_id}/run"): "config_mutation",
     ("POST", "/api/v1/message-archives"): "config_mutation",
@@ -220,7 +228,9 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("POST", "/api/v1/visu/nodes/import"): "config_mutation",
     ("POST", "/api/v1/visu/nodes/{node_id}/auth"): "config_mutation",
     ("POST", "/api/v1/visu/nodes/{node_id}/copy"): "config_mutation",
+    ("PUT", "/api/v1/auth/apikeys/{key_id}/capabilities"): "config_mutation",
     ("PUT", "/api/v1/config/autobackup/config"): "config_mutation",
+    ("PUT", "/api/v1/authz/principals/{principal_type}/{principal_id:path}/grants"): "config_mutation",
     ("PUT", "/api/v1/hierarchy/nodes/{node_id}"): "config_mutation",
     ("PUT", "/api/v1/hierarchy/nodes/{node_id}/move"): "config_mutation",
     ("PUT", "/api/v1/hierarchy/trees/{tree_id}"): "config_mutation",

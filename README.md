@@ -53,15 +53,26 @@ open bridge connects different building technology protocols into a unified syst
 14. [Logic editor](#logic-editor)
    - [Plugin logic blocks](#plugin-logic-blocks)
 15. [Adapter configuration](#adapter-configuration)
+    - [KNX adapter](#knx-adapter)
+    - [Modbus TCP adapter](#modbus-tcp-adapter)
+    - [Modbus RTU adapter](#modbus-rtu-adapter)
+    - [1-Wire adapter](#1-wire-adapter)
+    - [MQTT adapter (external broker)](#mqtt-adapter-external-broker)
+    - [MESSAGE adapter](#message-adapter)
+    - [Home Assistant adapter](#home-assistant-adapter)
+    - [ioBroker adapter](#iobroker-adapter)
+    - [SNMP adapter](#snmp-adapter)
+    - [Presence simulation adapter](#presence-simulation-adapter)
+    - [Scheduler adapter](#scheduler-adapter)
 16. [MQTT topics](#mqtt-topics)
 17. [Data types](#data-types)
 18. [Settings](#settings)
 19. [Helper scripts](#helper-scripts)
 20. [Visualization (Visu)](#visualization-visu)
-   - [Floor plan and system diagram widget](#floor-plan-and-system-diagram-widget)
+    - [Floor plan and system diagram widget](#floor-plan-and-system-diagram-widget)
 21. [Development](#development)
-   - [Local development with PyCharm](#local-development-with-pycharm)
-   - [Local Git Hooks (Pre-Push Gate)](#local-git-hooks-pre-push-gate)
+    - [Local development with PyCharm](#local-development-with-pycharm)
+    - [Local Git Hooks (Pre-Push Gate)](#local-git-hooks-pre-push-gate)
 
 ---
 
@@ -105,8 +116,12 @@ The LXC template contains a complete Ubuntu 26.04 system with **open bridge serv
 |---|---|
 | **open bridge server** web interface + API | `http://<container-ip>:8080` |
 
-**Default credentials:** username `admin`, password `admin`
-⚠️ Change the password immediately after first login (Settings → Password).
+OBS deliberately ships no default credentials. The first start initializes the database and
+then stops with a setup notice. Create exactly one owner locally before restarting the service:
+
+```bash
+obs-admin auth first-owner <username> --password-stdin
+```
 
 **Security configuration** (required):
 
@@ -620,6 +635,8 @@ The graph can also be started manually via the **▶ Run** button.
 
 Direct feedback loops are validated in the editor and blocked when saving or connecting nodes. Use a **Memory** block as an explicit tick boundary for controlled feedback: it outputs the value stored from the previous graph run and stores the current input for the next run.
 
+Every block can be **renamed** — function blocks and comment blocks alike: double-click its title on the logic sheet to turn it into a text field — Enter or clicking away commits the name, Escape aborts. The same field is also available at the top of the block properties, so a block can be renamed during a debug session as well. The custom name replaces the block type's default title on the card and in the block properties, with the block type and the generated block id kept below as a secondary line. Clearing the name restores the default title. Connections and references keep addressing the block by its id, and a rename on its own does not reset stored block state (memory, counters, statistics). Renaming edits the logic sheet and is therefore only offered to users who may change it; without that permission the title stays read-only.
+
 Select one or more blocks (Shift-drag a box, or Ctrl/Cmd-click to add individual blocks) and use **Copy** / **Paste** (or Ctrl/Cmd+C / Ctrl/Cmd+V) to duplicate them with their configuration intact — including across a switch to a different logic sheet, so a block group can be copied from one sheet to another. Pasted blocks are placed with a slight offset and come in pre-selected, ready to be dragged to their new position.
 
 ---
@@ -643,6 +660,7 @@ Select one or more blocks (Shift-drag a box, or Ctrl/Cmd-click to add individual
 | **Memory** | In, Reset | Out | Outputs the stored value from the previous graph run and stores the current input for the next run. Use this block to build controlled feedback loops. |
 | **Compare** | A, B | Result | Compares two values. Options: `>` `<` `=` `>=` `<=` `≠` |
 | **Hysteresis** | Value | Out | Switches on when the value exceeds "threshold ON", and switches off only when it falls below "threshold OFF". Prevents rapid toggling. |
+| **Merge** | IN 1, IN 2, … (2-30) | Out | Bundles several independent value sources into one shared output: whichever source last delivered a new value is passed through (Edomi-style terminal/junction). Replaces wiring several sources into the same input of another block — that isn't supported and is blocked at connect/save time. |
 | **Decision** | Value | 2-n boolean outputs | Evaluates multiple independent conditions against one input. Every output has its own name and condition; several outputs can be true at the same time. |
 | **Mapping** | Value | Result | Evaluates ordered rules and returns the first matching result. Output type can be bool, int, float, or string; an optional default value handles unmatched inputs. |
 
@@ -672,6 +690,7 @@ Decision and Mapping share the same condition operators: equals, not equal, grea
 | Block | Inputs | Outputs | Description |
 |---|---|---|---|
 | **Concatenate** | 2–20 inputs (configurable) | Result | Joins multiple texts into one. Optional separator (e.g. `,` or ` `). |
+| **Search/Replace** | Text | Result | Replaces matches in a text using an ordered list of rules — add, reorder and delete them in the block. Each rule searches for a plain text or a regular expression (RegEx, group references such as `\1` in the replacement), optionally ignoring case and optionally only replacing the first occurrence. Rules run top to bottom, each on the result of the previous one. |
 
 #### Timer
 
@@ -851,6 +870,11 @@ Shows calculated intermediate values directly on the blocks — live and automat
 2. Click the **🔍 Debug** button in the toolbar
 3. Each block shows a yellow band with its current output values
 4. The display updates automatically after each execution (value change, schedule, manual start)
+5. Click a block to open its configuration panel — while debug mode is active it offers a
+   **Debug values** tab (appended to the tab bar of Read/Write Object blocks, next to a
+   **Settings** tab for all other blocks), so the block can still be configured during a
+   debug session. The **Debug values** tab shows the complete inputs and outputs, execution
+   metadata and allows temporary input overrides for a single test run
 
 | Type | Display |
 |---|---|
@@ -1215,39 +1239,15 @@ Same binding configuration as TCP. Additional instance fields: `port` (e.g. `/de
 
 Connects to an **external** `owserver` process (the [OWFS](https://owfs.org) 1-Wire bus server) via the `pyownet` TCP protocol — the same "OBS is a client of an external service" relationship the MQTT adapter has with Mosquitto. `owserver` abstracts USB busmasters (plain USB sticks such as the DS9490, the ElabNET PBM's multiple channels) and the native kernel 1-Wire bus behind one uniform device tree, so this adapter never needs to know which hardware is actually behind it.
 
-`owserver` itself is **not started by OBS** — it ships as an opt-in Docker Compose sidecar (`owserver` service, `COMPOSE_PROFILES=onewire`, see `.env.example`) or, on the Proxmox LXC template, as a systemd service gated behind the `OBS_ONEWIRE__USB_ALL` / `OBS_ONEWIRE__PBM_DEVICES` variables in `/etc/obs.env`.
+`owserver` itself is **not started by OBS** — it ships as an opt-in Docker Compose sidecar or, on the Proxmox LXC template, as a systemd service. Setting up 1-Wire end to end takes five steps — the first three happen on the Proxmox/Docker **host**, the last two are OBS-side configuration:
 
-**Instance configuration:**
+1. Identify your 1-Wire device(s) — busmaster and/or PBM
+2. Create udev rules for stable device paths
+3. Pass the device(s) through to the container
+4. Configure `/etc/owfs.conf`
+5. Configure the 1-Wire adapter in OBS
 
-| Field | Default | Description |
-|---|---|---|
-| `host` | `localhost` | Hostname or IP address of the owserver process |
-| `port` | `4304` | owserver TCP port |
-| `poll_interval` | `30.0` | Poll interval in seconds |
-| `request_timeout` | `10.0` | Timeout in seconds per owserver call |
-| `aliases` | — | ROM-ID → label map; not edited here — maintained via the binding form's sensor scan (see below) |
-
-**Binding configuration:**
-
-| Field | Default | Description |
-|---|---|---|
-| `sensor_id` | — | ROM-ID, e.g. `28.4B057F0A1C10` |
-| `property` | `temperature` | OWFS property ("file"), e.g. `temperature`, `humidity`, `PIO.0` |
-
-The binding form's **Scan** button browses the connected owserver instance for attached sensors and their available properties, and lets you assign a persistent alias label per ROM-ID.
-
-> **Note:** This replaces the legacy sysfs-based adapter (`w1_path`, `/sys/bus/w1/devices`), which required OBS to run on the same host as the Linux kernel's `w1` driver. Via `owserver`, OBS can talk to any 1-Wire busmaster — including on a different host or inside its own container — and also supports the ElabNET PBM (ProfessionalBusMaster), not just the plain kernel driver.
-
-#### USB/serial passthrough: stable device paths (udev rule)
-
-A 1-Wire busmaster's device node isn't guaranteed to stay the same across reboots or when other USB/serial devices are attached:
-
-- A plain USB busmaster (e.g. DS9490) enumerates as `/dev/bus/usb/<bus>/<device>` — bus/device numbers can shift.
-- The ElabNET PBM enumerates as an FTDI serial device (`/dev/ttyUSB0`, `/dev/ttyUSB1`, …) — the trailing number depends on plug-in order.
-
-For the PBM, `/dev/serial/by-id/usb-FTDI_...` is usually already a stable path that udev creates automatically for any serial device exposing a serial number, without a custom rule. Plain USB busmasters don't get an equivalent automatic alias, so a custom udev rule is the reliable fix there — and it also works for the PBM if you'd rather have a short, self-chosen name than the long `by-id` path.
-
-**1. Identify the device**
+#### 1. Identify the device(s)
 
 First check with `lsusb` what hardware is actually attached — not every host has both types at once. A plain USB busmaster (DS9490R, DS1490F, …) reports the fixed VID:PID `04fa:2490`; the ElabNET PBM shows up as an FTDI chip under vendor `0403` (the exact product ID depends on the specific FTDI chip variant):
 
@@ -1300,9 +1300,14 @@ Two things stand out here:
 
 Prefer `serial` when the device reports one — unlike `idVendor`/`idProduct`, it's unique per physical unit, so the rule still matches the right device if you ever plug in a second one of the same model.
 
-> **Note:** The ElabNET PBM already gets a stable `/dev/serial/by-id/...` symlink out of the box (see the `ls /dev/serial/by-id/` output above) — for this device, a custom udev rule usually isn't needed at all; pointing `OBS_ONEWIRE__PBM_DEVICES` at that path directly is enough. A custom rule only pays off here for a shorter, self-chosen name.
+#### 2. Create udev rules for stable device paths
 
-**2. Write the rule**
+A 1-Wire busmaster's device node isn't guaranteed to stay the same across reboots or when other USB/serial devices are attached:
+
+- A plain USB busmaster (e.g. DS9490) enumerates as `/dev/bus/usb/<bus>/<device>` — bus/device numbers can shift.
+- The ElabNET PBM enumerates as an FTDI serial device (`/dev/ttyUSB0`, `/dev/ttyUSB1`, …) — the trailing number depends on plug-in order.
+
+For the PBM, `/dev/serial/by-id/usb-FTDI_...` is usually already a stable path that udev creates automatically for any serial device exposing a serial number, without a custom rule (see the `ls /dev/serial/by-id/` output in step 1) — pointing `OBS_ONEWIRE__PBM_DEVICES` at that path directly is enough, and you can skip ahead to step 3. Plain USB busmasters don't get an equivalent automatic alias, so a custom udev rule is the reliable fix there. A custom rule for the PBM only pays off if you'd rather have a short, self-chosen name than the long `by-id` path.
 
 Create the rule on the **Proxmox host** (not inside the container — Proxmox resolves the LXC passthrough mount against the host's device tree before the container starts, so the symlink must already exist there), e.g. `/etc/udev/rules.d/99-onewire.rules`:
 
@@ -1313,7 +1318,7 @@ Create the rule on the **Proxmox host** (not inside the container — Proxmox re
 SUBSYSTEM=="usb", ATTR{idVendor}=="04fa", ATTR{idProduct}=="2490", SYMLINK+="onewire-busmaster"
 
 # ElabNET PBM (FTDI) — ATTRS{} rather than ATTR{}, since idVendor/idProduct/serial sit
-# on the parent USB device, not on the tty device itself (see note above). idProduct varies
+# on the parent USB device, not on the tty device itself (see step 1). idProduct varies
 # by FTDI chip variant (6015 here) — check your own variant and serial with lsusb/udevadm.
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", ATTRS{serial}=="BM_00000401", SYMLINK+="onewire-pbm"
 ```
@@ -1327,14 +1332,24 @@ udevadm control --reload-rules && udevadm trigger
 ls -l /dev/onewire-busmaster /dev/onewire-pbm
 ```
 
-**3. Point the passthrough at the stable path**
+Example output for the devices from step 1 (both rules applied):
 
-- **Proxmox LXC** (`/etc/pve/lxc/<CTID>.conf`) — both lines are required, the mount entry alone is not sufficient (see AGENTS.MD's "owserver (1-Wire) in the LXC template" section):
-  ```
-  lxc.mount.entry: /dev/onewire-busmaster dev/onewire-busmaster none bind,optional,create=file
-  lxc.cgroup2.devices.allow: c 189:* rwm
-  ```
-  The major number (`189` for USB device nodes) can vary — check the real one with `ls -l /dev/onewire-busmaster`. Then set the LXC's `OBS_ONEWIRE__*` variables in `/etc/obs.env` to the symlinked name instead of the raw device path.
+```
+$ ls -l /dev/onewire-busmaster /dev/onewire-pbm
+lrwxrwxrwx 1 root root 15 Jul 26 14:02 /dev/onewire-busmaster -> bus/usb/001/004
+lrwxrwxrwx 1 root root  7 Jul 26 14:02 /dev/onewire-pbm -> ttyUSB0
+```
+
+If only one of the two rules applies to your hardware, `ls` reports `No such file or directory` for the other symlink — that's expected, not an error (see the note above). The symlink *target* (`ttyUSB0`, `bus/usb/001/004`, …) can also change across reboots or reconnects — the rule matches on fixed device attributes, not on the kernel-assigned name, so udev repoints the symlink to wherever the device actually lands each time. That's fine: only the symlink name itself (`/dev/onewire-pbm`) needs to stay stable, since that's what step 3 and 4 reference — never the raw device path.
+
+#### 3. Pass the device(s) through to the container
+
+- **Proxmox LXC**: open the container → **Resources** → **Add** → **Device Passthrough**, set **Device Path** to the stable symlink from step 2 (e.g. `/dev/onewire-busmaster`), and confirm. Repeat for each device that applies (busmaster and/or PBM):
+
+  ![Proxmox container Resources tab with two passed-through 1-Wire devices](docs/device-passthrough1.jpeg)
+  ![Proxmox Device Passthrough edit dialog](docs/device-passthrough2.jpeg)
+
+  Proxmox writes the matching mount entry and cgroup device permission for you — no manual `lxc.mount.entry`/`lxc.cgroup2.devices.allow` editing, and no risk of forgetting the cgroup line (the most common mistake with the manual approach). Restart the container (`pct reboot <CTID>`) for the passthrough to take effect.
 
 - **Docker Compose** (`docker-compose.yml`):
   ```yaml
@@ -1342,6 +1357,75 @@ ls -l /dev/onewire-busmaster /dev/onewire-pbm
     - "/dev/onewire-busmaster:/dev/onewire-busmaster"
     - "/dev/onewire-pbm:/dev/ttyUSB0"
   ```
+
+#### 4. Configure `/etc/owfs.conf`
+
+`/etc/owfs.conf` is `owserver`'s own config file — it tells `owserver` which bus(es) to listen on. With OBS's own `owserver` packaging (the Proxmox LXC systemd service and the Docker Compose sidecar) you never hand-edit this file: both regenerate it from scratch on every start from a small set of `OBS_ONEWIRE__*` environment variables, via the same shared script (`scripts/obs-onewire-configure.sh`) behind both deployment paths. "Configuring `/etc/owfs.conf`" therefore means setting a couple of environment variables in the right place, using the stable symlinked path(s) from step 2 (not the raw `/dev/bus/usb/...` or `/dev/ttyUSB0`).
+
+**Proxmox LXC** — edit `/etc/obs.env` inside the container (uncomment/add):
+
+```bash
+OBS_ONEWIRE__USB_ALL=true                    # if a plain busmaster is passed through
+OBS_ONEWIRE__PBM_DEVICES=/dev/onewire-pbm    # comma-separated for multiple PBMs
+# OBS_ONEWIRE__PORT=4304                     # optional, only if you changed the default
+```
+
+Then restart the service — `ExecCondition=` is re-evaluated on every start attempt, so this both regenerates `/etc/owfs.conf` and (re)starts `owserver` now that it has something to serve:
+
+```bash
+systemctl restart owserver
+systemctl status owserver          # should show "active (running)", not "inactive (dead)"
+journalctl -u owserver -n 20 --no-pager
+```
+
+**Docker Compose** — edit `.env` (see the commented-out `OBS_ONEWIRE_*` block; note the *single* underscore here vs. `OBS_ONEWIRE__*` above — `docker-compose.yml` remaps the names for you):
+
+```bash
+OBS_ONEWIRE_USB_ALL=true
+OBS_ONEWIRE_PBM_DEVICES=/dev/onewire-pbm
+COMPOSE_PROFILES=onewire
+```
+
+```bash
+docker compose up -d owserver
+docker compose logs owserver
+```
+
+Either way, the generated file looks like this (example for a host with both a busmaster and a PBM):
+
+```
+# Generated by obs-onewire-configure.sh — do not edit by hand.
+server: port = 4304
+server: usb = all
+server: pbm = /dev/onewire-pbm
+```
+
+> **Note:** These two environment variables (plus the optional port) are all that OBS's own `owserver` packaging exposes. If your setup needs an `/etc/owfs.conf` directive beyond `usb`/`pbm`/`port` — see the [OWFS config file documentation](https://owfs.org) for the full syntax — you're running `owserver` outside OBS's LXC/Docker packaging and own that file yourself; skip the two deployment paths above and write it by hand instead.
+
+#### 5. Configure the 1-Wire adapter in OBS
+
+With `owserver` running and reachable, add a **1-Wire** adapter instance in OBS pointing at it:
+
+> **Note:** In most cases the defaults below can be taken as-is — for the Proxmox LXC template, `owserver` and OBS run in the same container, so `host: localhost` / `port: 4304` already work without changes. For Docker Compose, `owserver` runs in its own sidecar container: set `host` to the Compose service name `owserver` instead of `localhost` (everything else stays default).
+
+**Instance configuration:**
+
+| Field | Default | Description |
+|---|---|---|
+| `host` | `localhost` | Hostname or IP address of the owserver process |
+| `port` | `4304` | owserver TCP port |
+| `poll_interval` | `30.0` | Poll interval in seconds |
+| `request_timeout` | `10.0` | Timeout in seconds per owserver call |
+| `aliases` | — | ROM-ID → label map; not edited here — maintained via the binding form's sensor scan (see below) |
+
+**Binding configuration:**
+
+| Field | Default | Description |
+|---|---|---|
+| `sensor_id` | — | ROM-ID, e.g. `28.4B057F0A1C10` |
+| `property` | `temperature` | OWFS property ("file"), e.g. `temperature`, `humidity`, `PIO.0` |
+
+The binding form's **Scan** button browses the connected owserver instance for attached sensors and their available properties, and lets you assign a persistent alias label per ROM-ID.
 
 ---
 
@@ -1386,7 +1470,9 @@ Sends notifications when a linked data point changes and the binding condition i
 | `cooldown_seconds` | Minimum delay between two sent messages |
 | `enabled` | Enables/disables the binding |
 
-Message placeholders: `###DP###` = value, `###DPU###` = unit, `###DPN###` = data point name, `###DPI###` = data point ID, `###TS###` = timestamp.
+Message placeholders: `###DP###` = value, `###DPU###` = unit, `###DPN###` = data point name, `###DPI###` = data point ID, `###TS###` = ISO timestamp, `###DATE###` / `###TIME###` = date and time in the configured display formats.
+
+Numeric values in `###DP###` are rendered in the configured **regional format** (see [Settings](#settings)) — with the German default, `1.05` becomes `1,05`. Non-numeric values (strings, booleans, objects) keep their locale-neutral representation, and `###TS###` always stays a locale-neutral ISO timestamp.
 
 > **Note:** Signal is not offered by the MESSAGE adapter for now because it would require operating a separate Signal gateway service.
 
@@ -1612,7 +1698,14 @@ Settings are accessible via the web interface (⚙ in the sidebar).
 
 **General:**
 - **Timezone** — all timestamps in the interface are displayed in this timezone (history, RingBuffer, history search, astro block)
+- **Default date format / default time format** — token patterns (`dd.MM.yyyy`, `HH:mm:ss`, …) used wherever a date or time is shown
+- **Regional format** — decimal separator, thousands grouping and date/currency conventions for **all** numeric output in the Admin GUI, the Visu and server-rendered notification text. This is a **separate setting from the language**, because the two are independent: German in Switzerland formats `1'234.50` while German in Germany formats `1.234,50`. `Automatic` derives the format from the selected language (`de` → `de-DE`, `gsw` → `de-CH`, `en` → `en-US`, …); any explicit entry (`de-DE`, `de-AT`, `de-CH`, `en-US`, `en-GB`, `fr-FR`, `fr-CH`, `it-IT`, `it-CH`, `es-ES`) overrides it. Data point values, calculations, API payloads, exports and stored history stay locale-neutral numbers.
+- **Currency** — ISO currency (`EUR`, `CHF`, `USD`, `GBP`) used for monetary output. `Automatic` derives it from the regional format (`de-CH`/`fr-CH`/`it-CH` → `CHF`, `en-US` → `USD`, `en-GB` → `GBP`, otherwise `EUR`).
 - **Import KNX project file** — upload ETS project file (`.knxproj`) to use group addresses as search suggestions in the binding form
+
+The regional format is also served read-only and without authentication at `GET /api/v1/system/display-settings`, so the Visu applies it for anonymous and PIN-only viewers as well.
+
+Formatting conventions and translated names are deliberately separated: **separators, date/time patterns and currency come from these server settings and are identical for every viewer** — one installation has one numeric convention — while **weekday and month names follow each viewer's own UI language**. A Visu opened in an English browser therefore shows English month names with the configured German number and date format.
 
 **History:** Overview of all data points with history recording. Data points with disabled recording (`record_history: false`) are shown first. Toggle recording per data point.
 
@@ -1829,7 +1922,12 @@ The `.env` file contains the MQTT password with which the Docker Mosquitto is in
 | API (Swagger) | http://localhost:8080/docs |
 | MQTT | localhost:1883 |
 
-**Default credentials:** `admin` / `admin`
+After the first backend start initializes the database and stops, create the local development
+owner once before restarting it:
+
+```bash
+tools/with-venv python -m obs.admin_cli auth first-owner <username> --password-stdin
+```
 
 #### Running tests
 
@@ -1928,6 +2026,10 @@ cp config.example.yaml config.yaml
 # Server with automatic restart on code changes
 uvicorn obs.main:create_app --factory --reload --host 0.0.0.0 --port 8080
 ```
+
+### Extending the logic engine
+
+Every built-in logic block is defined in its own module below `obs/logic/nodes/<category>/`, and `obs/logic/registry.py` assembles the public block catalogue from the per-category registries. Adding a new block therefore touches only its own module, one category registration, its capability classification and its own tests. The contract, the dependency rules and the step-by-step procedure are documented in [`docs/architecture/logic-nodes.md`](docs/architecture/logic-nodes.md) and enforced by architectural tests.
 
 ### Database structure
 

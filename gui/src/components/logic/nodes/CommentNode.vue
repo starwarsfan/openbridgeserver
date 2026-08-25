@@ -9,9 +9,15 @@
       @resize="onResize"
     />
 
-    <div class="cn-card" :style="{ width: width + 'px', height: height + 'px' }">
+    <div class="cn-card logic-node-surface" :style="{ width: width + 'px', height: height + 'px', '--node-tint': cardTint }">
       <div class="cn-header">
-        <span class="cn-title">{{ label }}</span>
+        <NodeTitleEditor
+          :value="customLabel"
+          :fallback="defaultLabel"
+          :editable="auth.isAdmin"
+          :title-class="['cn-title', customLabel && 'cn-title--custom']"
+          @rename="renameNode"
+        />
         <button class="cn-del nodrag" :style="{ visibility: hovered ? 'visible' : 'hidden' }" @click.stop="remove">✕</button>
       </div>
       <div class="cn-body nowheel">
@@ -27,6 +33,9 @@ import { ref, computed } from 'vue'
 import { useVueFlow } from '@vue-flow/core'
 import { NodeResizer } from '@vue-flow/node-resizer'
 import { useI18n } from 'vue-i18n'
+import { nodeTint } from '@/utils/logicNodeSurface'
+import NodeTitleEditor from '@/components/logic/NodeTitleEditor.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const { updateNodeData, removeNodes } = useVueFlow()
 const { t, te } = useI18n()
@@ -40,7 +49,20 @@ const props = defineProps({
 
 const hovered = ref(false)
 
-const label = computed(() => (te('logic.nodeTypes.' + props.type) ? t('logic.nodeTypes.' + props.type) : props.type))
+// Comment category colour — also the card border and header accent below.
+// Tinted over the opaque card surface (issue #1074).
+const COMMENT_COLOR = '#ca8a04'
+const cardTint = nodeTint(COMMENT_COLOR)
+
+const defaultLabel = computed(() => (te('logic.nodeTypes.' + props.type) ? t('logic.nodeTypes.' + props.type) : props.type))
+
+// ── User-defined block name (issue #1157) ─────────────────────────────────
+// A sheet with several comment boxes shows the same "KOMMENTAR" header on all
+// of them, and the config panel offers the rename field for every block type —
+// so this card has to honour the name like the function-block cards do.
+const customLabel = computed(() => String(props.data?.label ?? '').trim())
+function renameNode(label) { updateNodeData(props.id, { label }) }
+const auth = useAuthStore()
 const width  = computed(() => Number(props.data?.width)  || 220)
 const height = computed(() => Number(props.data?.height) || 140)
 
@@ -62,8 +84,8 @@ function remove() {
   border: 1px solid #ca8a04;
   border-radius: 8px;
   box-shadow: 0 4px 14px rgba(0,0,0,.3);
-  background: #ca8a0412;
   overflow: hidden;
+  /* background: provided by `.logic-node-surface` (opaque surface + tint). */
 }
 
 .cn-header {
@@ -74,8 +96,11 @@ function remove() {
   background: #ca8a0428;
   flex-shrink: 0;
 }
-.cn-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--node-title-color); }
-.cn-del   { font-size: 11px; color: var(--node-del-color); background: none; border: none; cursor: pointer; padding: 0 2px; line-height: 1; }
+.cn-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--node-title-color); }
+/* A user-chosen name keeps its own casing — the uppercase treatment is for
+   the generated type titles. */
+.cn-title--custom { text-transform: none; letter-spacing: .02em; }
+.cn-del   { flex-shrink: 0; font-size: 11px; color: var(--node-del-color); background: none; border: none; cursor: pointer; padding: 0 2px; line-height: 1; }
 .cn-del:hover { color: #f87171; }
 
 .cn-body {

@@ -49,6 +49,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   vi.doUnmock('@/api/client')
+  vi.doUnmock('@/api/logicAuthz')
   vi.doUnmock('vue-router')
   vi.doUnmock('@vue-flow/core')
   vi.doUnmock('@vue-flow/background')
@@ -87,14 +88,29 @@ async function mountLogicView({ isAdmin, graphs = [], routeQuery = {}, graphDeta
       data: { id: 'graph-new', name: 'New', description: '', enabled: true, flow_data: { nodes: [], edges: [] } },
     }),
     saveGraph: vi.fn().mockImplementation((id, payload) => Promise.resolve({ data: { ...defaultGraph, id, ...payload } })),
+  }
+  const logicRunAuthzApi = {
+    preflight: vi.fn().mockResolvedValue({
+      data: {
+        graph_id: 'graph-1',
+        allowed: true,
+        checks: [
+          { target_type: 'logic_graph', target_id: 'graph-1', node_ids: [], allowed: true, reason: 'allowed' },
+          { target_type: 'logic_graph_state', target_id: 'enabled', node_ids: [], allowed: true, reason: 'enabled' },
+        ],
+      },
+    }),
+  }
+  Object.assign(logicApi, {
     runGraph: vi.fn().mockResolvedValue({ data: { outputs: { n1: { value: 42, changed: true } } } }),
     patchGraph: vi.fn().mockImplementation((id, payload) => Promise.resolve({ data: { ...defaultGraph, id, ...payload } })),
     deleteGraph: vi.fn().mockResolvedValue({}),
     duplicateGraph: vi.fn().mockResolvedValue({ data: makeGraph('graph-copy', { name: 'Main Graph Copy' }) }),
     exportGraph: vi.fn().mockResolvedValue({ data: { export_type: 'logic_graph', name: 'Main Graph' } }),
     importGraph: vi.fn().mockResolvedValue({ data: makeGraph('graph-imported', { name: 'Imported Graph' }) }),
-  }
+  })
   vi.doMock('@/api/client', () => ({ logicApi }))
+  vi.doMock('@/api/logicAuthz', () => ({ logicRunAuthzApi }))
 
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -108,6 +124,11 @@ async function mountLogicView({ isAdmin, graphs = [], routeQuery = {}, graphDeta
       stubs: {
         NodePalette: true,
         NodeConfigPanel: true,
+        ActionPreflightDialog: {
+          props: ['modelValue', 'items', 'loading', 'error'],
+          emits: ['update:modelValue', 'confirm'],
+          template: '<div v-if="modelValue" data-testid="run-preflight"><button data-testid="preflight-confirm" :disabled="loading || !!error || items.some(item => !item.allowed)" @click="$emit(\'confirm\')">confirm</button></div>',
+        },
         Modal: { template: '<div><slot /><slot name="footer" /></div>' },
         ConfirmDialog: true,
         Spinner: { template: '<span />' },
@@ -116,7 +137,7 @@ async function mountLogicView({ isAdmin, graphs = [], routeQuery = {}, graphDeta
     attachTo: document.body,
   })
   await flushPromises()
-  return { wrapper, logicApi }
+  return { wrapper, logicApi, logicRunAuthzApi }
 }
 
 describe('LogicView auth gates', () => {
@@ -137,7 +158,7 @@ describe('LogicView auth gates', () => {
     })
 
     expect(logicApi.getGraph).toHaveBeenCalledWith('graph-1')
-    expect(wrapper.find('[data-testid="btn-run"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="btn-run"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="btn-debug"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="btn-toggle-enabled"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="btn-rename"]').exists()).toBe(false)
@@ -213,6 +234,142 @@ describe('LogicView auth gates', () => {
     expect(wrapper.vm.activeGraphId).toBe('graph-new')
   })
 
+  it('runs a graph immediately when the preflight is fully allowed, without showing the popup', async () => {
+    const graph = makeGraph('graph-1')
+    const { wrapper, logicApi, logicRunAuthzApi } = await mountLogicView({
+      isAdmin: false,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+
+    await wrapper.get('[data-testid="btn-run"]').trigger('click')
+    await flushPromises()
+
+    expect(logicRunAuthzApi.preflight).toHaveBeenCalledWith('graph-1')
+    expect(logicApi.runGraph).toHaveBeenCalledWith('graph-1')
+    expect(wrapper.find('[data-testid="run-preflight"]').exists()).toBe(false)
+  })
+
+  it('shows the popup and reports an error when the preflight request itself fails', async () => {
+    const graph = makeGraph('graph-1')
+    const { wrapper, logicApi, logicRunAuthzApi } = await mountLogicView({
+      isAdmin: false,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+    logicRunAuthzApi.preflight.mockRejectedValueOnce({ response: { data: { detail: 'preflight down' } } })
+
+    await wrapper.get('[data-testid="btn-run"]').trigger('click')
+    await flushPromises()
+
+    expect(logicApi.runGraph).not.toHaveBeenCalled()
+    expect(wrapper.vm.runPreflightError).toBe('preflight down')
+    expect(wrapper.find('[data-testid="run-preflight"]').exists()).toBe(true)
+  })
+
+  it('runs the graph once a preflight already open in the dialog is confirmed', async () => {
+    // Reachable defensively (component API / future partial-allow call
+    // sites) rather than through today's UI — the dialog now only opens on
+    // a denial, which also disables its confirm button — but confirmGraphRun
+    // must still do the right thing if invoked with an approved snapshot.
+    const graph = makeGraph('graph-1')
+    const { wrapper, logicApi } = await mountLogicView({
+      isAdmin: false,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+    wrapper.vm.preflightGraphId = 'graph-1'
+    wrapper.vm.runPreflightItems = [{ id: 'x', label: 'x', allowed: true }]
+
+    await wrapper.vm.confirmGraphRun()
+
+    expect(logicApi.runGraph).toHaveBeenCalledWith('graph-1')
+    expect(wrapper.vm.showRunPreflight).toBe(false)
+    expect(wrapper.vm.preflightGraphId).toBe('')
+  })
+
+  it('keeps a denied preflight from executing the graph', async () => {
+    const graph = makeGraph('graph-1')
+    const { wrapper, logicApi, logicRunAuthzApi } = await mountLogicView({
+      isAdmin: false,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+    logicRunAuthzApi.preflight.mockResolvedValueOnce({
+      data: {
+        graph_id: 'graph-1',
+        allowed: false,
+        checks: [{ target_type: 'logic_capability', target_id: 'sms', node_ids: ['n2'], allowed: false, reason: 'missing_allow' }],
+      },
+    })
+
+    await wrapper.get('[data-testid="btn-run"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="preflight-confirm"]').attributes('disabled')).toBeDefined()
+    expect(logicApi.runGraph).not.toHaveBeenCalled()
+  })
+
+  it('discards a preflight when graph selection changes before confirmation', async () => {
+    const graphOne = makeGraph('graph-1')
+    const graphTwo = makeGraph('graph-2', { name: 'Second Graph' })
+    const { wrapper, logicApi, logicRunAuthzApi } = await mountLogicView({
+      isAdmin: false,
+      graphs: [graphOne, graphTwo],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graphOne, 'graph-2': graphTwo },
+    })
+    // Force the denied path so the popup stays open pending confirmation —
+    // a fully-allowed preflight now runs immediately (see the fast-path
+    // test above) and never leaves anything pending to discard.
+    logicRunAuthzApi.preflight.mockResolvedValueOnce({
+      data: {
+        graph_id: 'graph-1',
+        allowed: false,
+        checks: [{ target_type: 'logic_capability', target_id: 'sms', node_ids: ['n2'], allowed: false, reason: 'missing_allow' }],
+      },
+    })
+
+    await wrapper.get('[data-testid="btn-run"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.vm.preflightGraphId).toBe('graph-1')
+
+    wrapper.vm.activeGraphId = 'graph-2'
+    await flushPromises()
+    await wrapper.vm.confirmGraphRun()
+
+    expect(wrapper.vm.showRunPreflight).toBe(false)
+    expect(wrapper.vm.preflightGraphId).toBe('')
+    expect(logicApi.runGraph).not.toHaveBeenCalled()
+  })
+
+  it('ignores a stale preflight response after selection changed', async () => {
+    const graphOne = makeGraph('graph-1')
+    const graphTwo = makeGraph('graph-2', { name: 'Second Graph' })
+    let resolvePreflight
+    const pendingPreflight = new Promise(resolve => { resolvePreflight = resolve })
+    const { wrapper, logicApi, logicRunAuthzApi } = await mountLogicView({
+      isAdmin: false,
+      graphs: [graphOne, graphTwo],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graphOne, 'graph-2': graphTwo },
+    })
+    logicRunAuthzApi.preflight.mockReturnValueOnce(pendingPreflight)
+
+    const request = wrapper.vm.requestGraphRun()
+    wrapper.vm.activeGraphId = 'graph-2'
+    await flushPromises()
+    resolvePreflight({ data: { graph_id: 'graph-1', allowed: true, checks: [] } })
+    await request
+
+    expect(wrapper.vm.preflightGraphId).toBe('')
+    expect(wrapper.vm.runPreflightItems).toEqual([])
+    expect(logicApi.runGraph).not.toHaveBeenCalled()
+  })
+
   it('loads and operates an active graph', async () => {
     const graph = makeGraph('graph-1')
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
@@ -264,8 +421,7 @@ describe('LogicView auth gates', () => {
     await wrapper.vm.runGraph()
     expect(wrapper.vm.lastRunOutputs.n1.value).toBe(42)
     expect(wrapper.vm.lastRunDebugOutputs.n1.value).toBe(42)
-    expect(wrapper.vm.nodes[0].data).not.toHaveProperty('_dbg')
-    expect(wrapper.vm.nodes[0].data).not.toHaveProperty('_dbg_title')
+    expect(wrapper.vm.nodes[0].data._dbg).toBe('= 42')
 
     await wrapper.vm.saveGraph()
     const savedPayload = logicApi.saveGraph.mock.calls.at(-1)[1]
@@ -342,6 +498,101 @@ describe('LogicView auth gates', () => {
   })
 })
 
+// ── Grid visibility, independent of snapping (#1075) ───────────────────────
+
+describe('LogicView grid visibility', () => {
+  async function mountWithStorage(storage = {}, { isAdmin = true } = {}) {
+    const graph = makeGraph('graph-1')
+    localStorage.getItem.mockImplementation(key => storage[key] ?? null)
+    return mountLogicView({
+      isAdmin,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+  }
+
+  it('shows the raster by default', async () => {
+    const { wrapper } = await mountWithStorage()
+
+    expect(wrapper.findComponent({ name: 'Background' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="btn-grid-visible"]').attributes('aria-pressed')).toBe('true')
+  })
+
+  it('keeps the raster hidden when the browser preference says so', async () => {
+    const { wrapper } = await mountWithStorage({ 'obs-logic-grid-visible': '0' })
+
+    expect(wrapper.findComponent({ name: 'Background' }).exists()).toBe(false)
+    expect(wrapper.find('[data-testid="btn-grid-visible"]').attributes('aria-pressed')).toBe('false')
+  })
+
+  it('toggles the raster and persists the preference per browser', async () => {
+    const { wrapper } = await mountWithStorage()
+
+    await wrapper.find('[data-testid="btn-grid-visible"]').trigger('click')
+    expect(wrapper.findComponent({ name: 'Background' }).exists()).toBe(false)
+    expect(localStorage.setItem).toHaveBeenCalledWith('obs-logic-grid-visible', '0')
+
+    await wrapper.find('[data-testid="btn-grid-visible"]').trigger('click')
+    expect(wrapper.findComponent({ name: 'Background' }).exists()).toBe(true)
+    expect(localStorage.setItem).toHaveBeenCalledWith('obs-logic-grid-visible', '1')
+  })
+
+  it('hides the raster without touching graph data or node coordinates', async () => {
+    const { wrapper, logicApi } = await mountWithStorage()
+    const before = JSON.parse(JSON.stringify(wrapper.vm.nodes))
+
+    await wrapper.find('[data-testid="btn-grid-visible"]').trigger('click')
+
+    expect(JSON.parse(JSON.stringify(wrapper.vm.nodes))).toEqual(before)
+    expect(logicApi.saveGraph).not.toHaveBeenCalled()
+  })
+
+  it('leaves snapping untouched when the raster is hidden', async () => {
+    const { wrapper } = await mountWithStorage({ 'obs-logic-snap-to-grid': '1' })
+
+    await wrapper.find('[data-testid="btn-grid-visible"]').trigger('click')
+
+    expect(wrapper.findComponent({ name: 'Background' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'VueFlow' }).props('snapToGrid')).toBe(true)
+  })
+
+  it('keeps the raster visible when snapping is switched off', async () => {
+    const { wrapper } = await mountWithStorage({ 'obs-logic-snap-to-grid': '1' })
+
+    await wrapper.find('[data-testid="btn-snap-to-grid"]').trigger('click')
+
+    expect(wrapper.findComponent({ name: 'VueFlow' }).props('snapToGrid')).toBe(false)
+    expect(wrapper.findComponent({ name: 'Background' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="input-snap-grid-size"]').exists()).toBe(true)
+  })
+
+  it('hides the grid size input once neither snapping nor the raster needs it', async () => {
+    const { wrapper } = await mountWithStorage({ 'obs-logic-grid-visible': '0' })
+
+    expect(wrapper.find('[data-testid="input-snap-grid-size"]').exists()).toBe(false)
+  })
+
+  it('offers the raster toggle without edit permissions but keeps snapping admin-only', async () => {
+    const { wrapper } = await mountWithStorage({}, { isAdmin: false })
+
+    expect(wrapper.find('[data-testid="btn-grid-visible"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="btn-snap-to-grid"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="input-snap-grid-size"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="btn-grid-visible"]').trigger('click')
+    expect(wrapper.findComponent({ name: 'Background' }).exists()).toBe(false)
+    expect(localStorage.setItem).toHaveBeenCalledWith('obs-logic-grid-visible', '0')
+  })
+
+  it('offers no raster toggle before a logic sheet is opened', async () => {
+    localStorage.getItem.mockImplementation(() => null)
+    const { wrapper } = await mountLogicView({ isAdmin: true })
+
+    expect(wrapper.find('[data-testid="btn-grid-visible"]').exists()).toBe(false)
+  })
+})
+
 describe('LogicView WebSocket', () => {
   let savedWebSocket
   beforeEach(() => { savedWebSocket = global.WebSocket })
@@ -402,8 +653,7 @@ describe('LogicView WebSocket', () => {
     expect(wrapper.vm.lastRunOutputs.n1.value).toEqual({ nested: true })
     expect(wrapper.vm.lastRunDebugOutputs.n1.value).toEqual({ nested: true })
     expect(wrapper.vm.lastRunInputs.n1.value.incoming).toBe(12)
-    expect(wrapper.vm.nodes[0].data).not.toHaveProperty('_dbg')
-    expect(wrapper.vm.nodes[0].data).not.toHaveProperty('_dbg_title')
+    expect(wrapper.vm.nodes[0].data._dbg).toContain('[object Object]')
   })
 
   it('ignores logic_run message for a different graph_id', async () => {
@@ -545,17 +795,26 @@ describe('LogicView inspector inputs', () => {
       graphDetails: { 'graph-1': graph },
     })
 
-    wrapper.vm.debugNode = { id: 'gate', type: 'and', data: { input_count: 3 } }
+    wrapper.vm.selectedNode = { id: 'gate', type: 'and', data: { input_count: 3 } }
     expect(wrapper.vm.debugInputs.map(input => input.id)).toEqual(['in1', 'in2', 'in3'])
 
-    wrapper.vm.debugNode = { id: 'average', type: 'avg_multi', data: { input_count: 4 } }
+    wrapper.vm.selectedNode = { id: 'average', type: 'avg_multi', data: { input_count: 4 } }
     expect(wrapper.vm.debugInputs.map(input => input.id)).toEqual(['in_1', 'in_2', 'in_3', 'in_4'])
 
-    wrapper.vm.debugNode = { id: 'concat', type: 'string_concat', data: { count: 3 } }
+    wrapper.vm.selectedNode = { id: 'concat', type: 'string_concat', data: { count: 3 } }
     wrapper.vm.edges = [{ id: 'custom', source: 'n1', target: 'concat', sourceHandle: 'value', targetHandle: 'in_4' }]
     expect(wrapper.vm.debugInputs.map(input => input.id)).toEqual(['in_1', 'in_2', 'in_3', 'in_4'])
 
-    wrapper.vm.debugNode = { id: 'source', type: 'datapoint_read', data: {} }
+    // Without a configured count the block falls back to its two inputs, and an
+    // edge without an explicit handle targets the default 'in' port.
+    wrapper.vm.selectedNode = { id: 'concat', type: 'string_concat', data: {} }
+    wrapper.vm.edges = [{ id: 'default-handle', source: 'n1', target: 'concat', sourceHandle: 'out' }]
+    wrapper.vm.lastRunDebugOutputs = { n1: { out: 'from default handle' } }
+    expect(wrapper.vm.debugInputs.map(input => input.id)).toEqual(['in_1', 'in_2', 'in'])
+    expect(wrapper.vm.debugInputs.find(input => input.id === 'in').incoming).toBe('from default handle')
+    wrapper.vm.lastRunDebugOutputs = {}
+
+    wrapper.vm.selectedNode = { id: 'source', type: 'datapoint_read', data: {} }
     wrapper.vm.edges = []
     wrapper.vm.lastRunInputs = {
       source: { value: { incoming: 23, effective: 99, overridden: true } },
@@ -571,11 +830,11 @@ describe('LogicView inspector inputs', () => {
       }),
     ])
 
-    wrapper.vm.debugNode = { id: 'script', type: 'python_script', data: {} }
+    wrapper.vm.selectedNode = { id: 'script', type: 'python_script', data: {} }
     wrapper.vm.lastRunInputs = {}
     expect(wrapper.vm.debugInputs.map(input => input.id)).toEqual(['a', 'b', 'c'])
 
-    wrapper.vm.debugNode = { id: 'gate', type: 'and', data: { input_count: 2 } }
+    wrapper.vm.selectedNode = { id: 'gate', type: 'and', data: { input_count: 2 } }
     wrapper.vm.edges = [{ id: 'stale', source: 'source', target: 'gate', sourceHandle: 'out', targetHandle: 'in1' }]
     wrapper.vm.lastRunOutputs = { source: { out: 'ordinary-run' } }
     wrapper.vm.lastRunDebugOutputs = {}
@@ -583,7 +842,7 @@ describe('LogicView inspector inputs', () => {
     wrapper.vm.lastRunDebugOutputs = { source: { out: 'debug-run' } }
     expect(wrapper.vm.debugInputs.find(input => input.id === 'in1').incoming).toBe('debug-run')
 
-    wrapper.vm.debugNode = null
+    wrapper.vm.selectedNode = null
     expect(wrapper.vm.debugInputs).toEqual([])
   })
 
@@ -604,8 +863,7 @@ describe('LogicView inspector inputs', () => {
 
     wrapper.vm.toggleDebug()
     wrapper.vm.onNodeClick({ node: wrapper.vm.nodes[0] })
-    expect(wrapper.vm.debugNode.id).toBe('n1')
-    expect(wrapper.vm.selectedNode).toBe(null)
+    expect(wrapper.vm.selectedNode.id).toBe('n1')
 
     wrapper.vm.setDebugOverride('value', '{"nested":true}')
     wrapper.vm.setDebugOverride('label', 'plain text')
@@ -622,7 +880,6 @@ describe('LogicView inspector inputs', () => {
     wrapper.vm.setDebugOverride('label', '   ')
     wrapper.vm.clearAllDebugOverrides()
     wrapper.vm.toggleDebug()
-    expect(wrapper.vm.debugNode).toBe(null)
     expect(wrapper.vm.lastRunMetadata).toBe(null)
     expect(wrapper.vm.lastRunDebugOutputs).toEqual({})
     expect(wrapper.vm.lastRunOutputs.n1.value).toBe(7)
@@ -630,7 +887,49 @@ describe('LogicView inspector inputs', () => {
     wrapper.vm.toggleDebug()
     wrapper.vm.onNodeClick({ node: wrapper.vm.nodes[0] })
     await wrapper.vm.$nextTick()
-    expect(wrapper.findComponent({ name: 'DebugInspector' }).props('outputs')).toEqual({})
+    const panel = wrapper.findComponent({ name: 'NodeConfigPanel' })
+    expect(panel.props('debugMode')).toBe(true)
+    expect(panel.props('debugOutputs')).toEqual({})
+  })
+
+  it('ignores override edits without edit permission', async () => {
+    const { wrapper } = await mountLogicView({ isAdmin: false })
+
+    wrapper.vm.setDebugOverride('value', '42')
+
+    expect(wrapper.vm.debugOverrides).toEqual({})
+  })
+
+  it('keeps the selected block editable while debug mode is on (issue #1128)', async () => {
+    const graph = makeGraph('graph-1')
+    const { wrapper, logicApi } = await mountLogicView({
+      isAdmin: true,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+
+    wrapper.vm.toggleDebug()
+    wrapper.vm.onNodeClick({ node: wrapper.vm.nodes[0] })
+    await wrapper.vm.$nextTick()
+
+    // One panel serves both tabs: it stays open on the same block and carries
+    // that block's debug data alongside its settings.
+    const panel = wrapper.findComponent({ name: 'NodeConfigPanel' })
+    expect(panel.exists()).toBe(true)
+    expect(panel.props('node').id).toBe('n1')
+    expect(panel.props('debugMode')).toBe(true)
+    wrapper.vm.lastRunInputs = { n1: { value: { incoming: 5, effective: 5, overridden: false } } }
+    await wrapper.vm.$nextTick()
+    expect(panel.props('debugInputs').map(input => input.id)).toEqual(['value'])
+
+    wrapper.vm.onNodeDataUpdate({ label: 'renamed in debug mode' })
+    vi.advanceTimersByTime(500)
+    await flushPromises()
+
+    expect(wrapper.vm.nodes[0].data.label).toBe('renamed in debug mode')
+    expect(logicApi.saveGraph).toHaveBeenCalled()
+    expect(wrapper.vm.debugMode).toBe(true)
   })
 
   it('ignores debug state from a run completed after debug mode is disabled', async () => {
@@ -775,6 +1074,179 @@ describe('LogicView graph cycle validation', () => {
     expect(wrapper.vm.statusMsg.text).toContain('Warnungen')
     expect(wrapper.vm.lastRunOutputs.n1.__diagnostic__).toBe('graph_cycle')
     expect(wrapper.vm.nodes[0].data._dbg).toContain('Graph cycle detected')
+  })
+})
+
+describe('LogicView duplicate target handle validation (#1116)', () => {
+  it('blocks connecting a second edge onto an already-connected input handle', async () => {
+    const graph = makeGraph('graph-1', {
+      flow_data: {
+        nodes: [
+          { id: 'a', type: 'const_value', position: { x: 0, y: 0 }, data: {} },
+          { id: 'b', type: 'const_value', position: { x: 0, y: 160 }, data: {} },
+          { id: 'c', type: 'datapoint_write', position: { x: 160, y: 0 }, data: {} },
+        ],
+        edges: [
+          { id: 'a-c', source: 'a', target: 'c', sourceHandle: 'value', targetHandle: 'value' },
+        ],
+      },
+    })
+    const { wrapper } = await mountLogicView({
+      isAdmin: true,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+
+    wrapper.vm.onConnect({ source: 'b', target: 'c', sourceHandle: 'value', targetHandle: 'value' })
+
+    expect(wrapper.vm.edges).toHaveLength(1)
+    expect(wrapper.vm.statusMsg.ok).toBe(false)
+  })
+
+  it('allows two edges that target different handles of the same node', async () => {
+    const graph = makeGraph('graph-1', {
+      flow_data: {
+        nodes: [
+          { id: 'a', type: 'const_value', position: { x: 0, y: 0 }, data: {} },
+          { id: 'b', type: 'const_value', position: { x: 0, y: 160 }, data: {} },
+          { id: 'c', type: 'compare', position: { x: 160, y: 0 }, data: {} },
+        ],
+        edges: [
+          { id: 'a-c', source: 'a', target: 'c', sourceHandle: 'value', targetHandle: 'in1' },
+        ],
+      },
+    })
+    const { wrapper } = await mountLogicView({
+      isAdmin: true,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+
+    wrapper.vm.onConnect({ source: 'b', target: 'c', sourceHandle: 'value', targetHandle: 'in2' })
+
+    expect(wrapper.vm.edges).toHaveLength(2)
+    expect(wrapper.vm.validationWarnings).toEqual([])
+  })
+
+  it('detects a duplicate on the default "in" handle when edges omit targetHandle', async () => {
+    const graph = makeGraph('graph-1', {
+      flow_data: {
+        nodes: [
+          { id: 'a', type: 'const_value', position: { x: 0, y: 0 }, data: {} },
+          { id: 'b', type: 'const_value', position: { x: 0, y: 160 }, data: {} },
+          { id: 'c', type: 'not', position: { x: 160, y: 0 }, data: {} },
+        ],
+        edges: [
+          { id: 'a-c', source: 'a', target: 'c', sourceHandle: 'value' },
+          { id: 'b-c', source: 'b', target: 'c', sourceHandle: 'value' },
+        ],
+      },
+    })
+    const { wrapper } = await mountLogicView({
+      isAdmin: true,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+
+    expect(wrapper.vm.validationWarnings).toEqual([
+      { node_id: 'c', code: 'duplicate_target_handle', message: expect.stringContaining('c.in') },
+    ])
+  })
+
+  it('blocks saving a graph with two edges on the same input handle and marks the target node', async () => {
+    const graph = makeGraph('graph-1', {
+      flow_data: {
+        nodes: [
+          { id: 'a', type: 'const_value', position: { x: 0, y: 0 }, data: {} },
+          { id: 'b', type: 'const_value', position: { x: 0, y: 160 }, data: {} },
+          { id: 'c', type: 'datapoint_write', position: { x: 160, y: 0 }, data: {} },
+        ],
+        edges: [
+          { id: 'a-c', source: 'a', target: 'c', sourceHandle: 'value', targetHandle: 'value' },
+          { id: 'b-c', source: 'b', target: 'c', sourceHandle: 'value', targetHandle: 'value' },
+        ],
+      },
+    })
+    const { wrapper, logicApi } = await mountLogicView({
+      isAdmin: true,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+
+    await wrapper.vm.saveGraph()
+
+    expect(logicApi.saveGraph).not.toHaveBeenCalled()
+    expect(wrapper.vm.statusMsg.ok).toBe(false)
+    expect(wrapper.vm.validationWarnings).toEqual([
+      { node_id: 'c', code: 'duplicate_target_handle', message: expect.stringContaining('c.value') },
+    ])
+    expect(wrapper.vm.lastRunOutputs.c.__diagnostic__).toBe('duplicate_target_handle')
+    expect(wrapper.vm.nodes.find(n => n.id === 'c').data._dbg).toBeTruthy()
+  })
+
+  it('reports the duplicate-handle warning on the live status bar for an already-saved graph', async () => {
+    const graph = makeGraph('graph-1', {
+      flow_data: {
+        nodes: [
+          { id: 'a', type: 'const_value', position: { x: 0, y: 0 }, data: {} },
+          { id: 'b', type: 'const_value', position: { x: 0, y: 160 }, data: {} },
+          { id: 'c', type: 'datapoint_write', position: { x: 160, y: 0 }, data: {} },
+        ],
+        edges: [
+          { id: 'a-c', source: 'a', target: 'c', sourceHandle: 'value', targetHandle: 'value' },
+          { id: 'b-c', source: 'b', target: 'c', sourceHandle: 'value', targetHandle: 'value' },
+        ],
+      },
+    })
+    const { wrapper } = await mountLogicView({
+      isAdmin: true,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+
+    expect(wrapper.vm.validationWarnings).toHaveLength(1)
+    expect(wrapper.find('[data-testid="status-msg"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Mehrfachverbindung')
+  })
+
+  it('scopes the reported count to duplicate-handle warnings when a cycle warning is also present', async () => {
+    const graph = makeGraph('graph-1', {
+      flow_data: {
+        nodes: [
+          { id: 'a', type: 'not', position: { x: 0, y: 0 }, data: {} },
+          { id: 'b', type: 'not', position: { x: 160, y: 0 }, data: {} },
+          { id: 'c', type: 'const_value', position: { x: 0, y: 160 }, data: {} },
+          { id: 'd', type: 'const_value', position: { x: 0, y: 320 }, data: {} },
+          { id: 'e', type: 'datapoint_write', position: { x: 320, y: 160 }, data: {} },
+        ],
+        edges: [
+          { id: 'a-b', source: 'a', target: 'b', sourceHandle: 'out', targetHandle: 'in1' },
+          { id: 'b-a', source: 'b', target: 'a', sourceHandle: 'out', targetHandle: 'in1' },
+          { id: 'c-e', source: 'c', target: 'e', sourceHandle: 'value', targetHandle: 'value' },
+          { id: 'd-e', source: 'd', target: 'e', sourceHandle: 'value', targetHandle: 'value' },
+        ],
+      },
+    })
+    const { wrapper, logicApi } = await mountLogicView({
+      isAdmin: true,
+      graphs: [graph],
+      routeQuery: { graph: 'graph-1' },
+      graphDetails: { 'graph-1': graph },
+    })
+
+    await wrapper.vm.saveGraph()
+
+    expect(logicApi.saveGraph).not.toHaveBeenCalled()
+    // Two cycle warnings (a, b) plus one duplicate-handle warning (e) — the
+    // duplicate-handle message must report "1", not the combined total "3".
+    expect(wrapper.vm.validationWarnings).toHaveLength(3)
+    expect(wrapper.vm.statusMsg.text).toContain('1 Eingang')
+    expect(wrapper.vm.statusMsg.text).not.toContain('3 Eingang')
   })
 })
 

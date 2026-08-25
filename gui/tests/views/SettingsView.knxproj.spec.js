@@ -521,7 +521,7 @@ describe('SettingsView account and admin coverage', () => {
     const saveTimezone = wrapper.findAll('button').find(button => button.text() === 'Speichern')
     await saveTimezone.trigger('click')
     await flushPromises()
-    expect(saveSettings).toHaveBeenCalledWith('Europe/Berlin', 'yyyy/MM/dd', 'H:mm')
+    expect(saveSettings).toHaveBeenCalledWith('Europe/Berlin', 'yyyy/MM/dd', 'H:mm', 'de', 'auto', 'auto')
 
     const darkTheme = wrapper.findAll('input[type="radio"]').find(input => input.element.value === 'dark')
     await darkTheme.setValue()
@@ -595,7 +595,7 @@ describe('SettingsView account and admin coverage', () => {
     expect(authApi.createApiKey).toHaveBeenCalledWith('Automation')
     expect(wrapper.text()).toContain('obs_secret_key')
 
-    await wrapper.find('.table button').trigger('click')
+    await wrapper.get('[data-testid="apikey-delete-key-1"]').trigger('click')
     await flushPromises()
     expect(authApi.deleteApiKey).toHaveBeenCalledWith('key-1')
 

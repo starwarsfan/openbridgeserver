@@ -143,6 +143,8 @@ async def test_export_top_level_shape(client, auth_headers):
         "app_settings",
         "hierarchy_trees",
         "hierarchy_nodes",
+        "authz_grants",
+        "api_key_capability_sets",
     ):
         assert field in body, f"missing top-level field: {field}"
 
@@ -150,7 +152,7 @@ async def test_export_top_level_shape(client, auth_headers):
 async def test_export_lists_are_lists(client, auth_headers):
     resp = await client.get("/api/v1/config/export", headers=auth_headers)
     body = resp.json()
-    for key in ("datapoints", "bindings", "adapter_instances", "logic_graphs"):
+    for key in ("datapoints", "bindings", "adapter_instances", "logic_graphs", "authz_grants", "api_key_capability_sets"):
         assert isinstance(body[key], list), f"{key} should be a list"
 
 
@@ -190,7 +192,7 @@ async def test_export_datapoint_shape(client, auth_headers):
 
 
 async def test_export_db_requires_admin(client, auth_headers):
-    # admin/admin is the default → should work
+    # The integration fixture explicitly seeds an administrator.
     resp = await client.get("/api/v1/config/export/db", headers=auth_headers)
     assert resp.status_code == 200
 
@@ -419,6 +421,57 @@ async def test_import_skips_invalid_datetime_settings(client, auth_headers):
     assert response.json()["app_settings_upserted"] == 0
     assert len(response.json()["errors"]) == 3
     assert (await client.get("/api/v1/system/settings", headers=auth_headers)).json() == original
+
+
+async def test_import_skips_invalid_regional_settings(client, auth_headers):
+    """An unvalidated currency would reach the frontends, where Intl rejects it (#1073)."""
+    original = (await client.get("/api/v1/system/settings", headers=auth_headers)).json()
+    payload = {
+        "obs_version": "5",
+        "exported_at": "2024-01-01T00:00:00",
+        "datapoints": [],
+        "bindings": [],
+        "app_settings": [
+            {"key": "region_format", "value": "nl-NL"},
+            {"key": "currency", "value": "x"},
+        ],
+    }
+
+    response = await client.post("/api/v1/config/import", json=payload, headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json()["app_settings_upserted"] == 0
+    assert len(response.json()["errors"]) == 2
+    assert (await client.get("/api/v1/system/settings", headers=auth_headers)).json() == original
+
+
+async def test_import_applies_valid_regional_settings(client, auth_headers):
+    from obs.logic.manager import get_logic_manager
+
+    payload = {
+        "obs_version": "5",
+        "exported_at": "2024-01-01T00:00:00",
+        "datapoints": [],
+        "bindings": [],
+        "app_settings": [
+            {"key": "region_format", "value": "de-CH"},
+            {"key": "currency", "value": "CHF"},
+        ],
+    }
+
+    response = await client.post("/api/v1/config/import", json=payload, headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json()["app_settings_upserted"] == 2
+    settings = (await client.get("/api/v1/system/settings", headers=auth_headers)).json()
+    assert settings["region_format"] == "de-CH"
+    assert settings["currency"] == "CHF"
+    assert get_logic_manager()._app_config["region_format"] == "de-CH"
+    await client.put(
+        "/api/v1/system/settings",
+        json={"region_format": "auto", "currency": "auto"},
+        headers=auth_headers,
+    )
 
 
 # ---------------------------------------------------------------------------

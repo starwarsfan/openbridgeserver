@@ -36,6 +36,12 @@ describe('GenericNode — label from NODE_DEFS', () => {
     expect(w.find('.gn-title').text()).toBe('AND')
   })
 
+  it('shows "Klemme" for merge type', async () => {
+    const w = await mountGN('merge')
+    await flushPromises()
+    expect(w.find('.gn-title').text()).toBe('Klemme')
+  })
+
   it('falls back to type string for unknown type', async () => {
     const w = await mountGN('mystery_node')
     await flushPromises()
@@ -43,9 +49,11 @@ describe('GenericNode — label from NODE_DEFS', () => {
   })
 
   it('exposes the full heading when its fixed-width display is truncated', async () => {
+    // The tooltip carries the heading plus the rename hint (#1157), so a
+    // truncated title is still readable and the gesture is discoverable.
     const w = await mountGN('substring_extractor')
     await flushPromises()
-    expect(w.find('.gn-title').attributes('title')).toBe(w.find('.gn-title').text())
+    expect(w.find('.gn-title').attributes('title')).toContain(w.find('.gn-title').text())
   })
 })
 
@@ -76,6 +84,30 @@ describe('GenericNode — handles', () => {
     await flushPromises()
     const targets = w.findAll('.handle').filter(h => h.attributes('data-type') === 'target')
     expect(targets.length).toBe(4)
+  })
+
+  it('renders 2 target handles for merge type', async () => {
+    const w = await mountGN('merge')
+    await flushPromises()
+    const targets = w.findAll('.handle').filter(h => h.attributes('data-type') === 'target')
+    expect(targets.length).toBe(2)
+  })
+
+  it('renders dynamic input count for merge (input_count=5)', async () => {
+    const w = await mountGN('merge', { input_count: 5 })
+    await flushPromises()
+    const targets = w.findAll('.handle').filter(h => h.attributes('data-type') === 'target')
+    expect(targets.length).toBe(5)
+  })
+
+  it('shows "Änderungsfilter" label and renders 1 target + 2 source handles for change_filter', async () => {
+    const w = await mountGN('change_filter')
+    await flushPromises()
+    expect(w.find('.gn-title').text()).toBe('Änderungsfilter')
+    const targets = w.findAll('.handle').filter(h => h.attributes('data-type') === 'target')
+    const sources = w.findAll('.handle').filter(h => h.attributes('data-type') === 'source')
+    expect(targets.length).toBe(1)
+    expect(sources.length).toBe(2)
   })
 
   it('renders two default source handles for decision', async () => {
@@ -250,6 +282,12 @@ describe('GenericNode — gate node negate', () => {
     const negateBtns = w.findAll('.gn-port-negate')
     await negateBtns[0].trigger('click')
     expect(updateNodeDataMock).toHaveBeenCalledWith('gn-1', expect.objectContaining({ negate_in1: true }))
+  })
+
+  it('does not show negate buttons for merge — its inputs are values, not booleans', async () => {
+    const w = await mountGN('merge')
+    await flushPromises()
+    expect(w.findAll('.gn-port-negate').length).toBe(0)
   })
 })
 

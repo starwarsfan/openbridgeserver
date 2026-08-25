@@ -1296,7 +1296,8 @@
       "export": "Exportieren",
       "failed": "Export fehlgeschlagen",
       "title": "Export",
-      "fileExtHint": "Dateiendung: {ext}."
+      "fileExtHint": "Dateiendung: {ext}.",
+      "escapeCharPlaceholder": "(leer)"
     },
     "topbar": {
       "activeTitle": "Aktiv — klicken zum Deaktivieren (nur für mich)",
@@ -1595,12 +1596,21 @@
     "searchNodesPalette": "Knoten suchen …",
     "negateOutput": "Ausgang negieren",
     "debugMode": "Debug-Modus: zeigt Werte nach Ausführen",
-    "snapToGrid": "Raster",
+    "snapToGrid": "Einrasten",
     "snapToGridTitle": "Funktionsblöcke am Raster einrasten",
+    "gridVisible": "Raster",
+    "gridShowTitle": "Raster einblenden",
+    "gridHideTitle": "Raster ausblenden",
     "gridSize": "Rastermaß",
     "deleteBlock": "Block löschen",
     "deleteNode": "Ast löschen",
     "init": "Init",
+    "blockName": {
+      "label": "Blockname",
+      "editTitle": "{name} — Doppelklick zum Umbenennen",
+      "panelHint": "Eigener Name für diesen Block. Leer lassen für den Standardtitel des Blocktyps.",
+      "typeAndId": "{type} · {id}"
+    },
     "nodeTypes": {
       "divide": "Dividieren",
       "const_value": "Festwert",
@@ -1611,8 +1621,10 @@
       "xor": "XOR",
       "gate": "TOR",
       "memory": "Speicher",
+      "change_filter": "Änderungsfilter",
       "compare": "Vergleich",
       "hysteresis": "Hysterese",
+      "merge": "Klemme",
       "decision": "Entscheidung",
       "value_mapping": "Zuordnung",
       "datapoint_read": "Objekt lesen",
@@ -1624,6 +1636,7 @@
       "statistics": "Statistik",
       "avg_multi": "Mittelwert",
       "string_concat": "String Verketten",
+      "string_replace": "String Suchen/Ersetzen",
       "heating_circuit": "Sommer/Winter (DIN)",
       "min_max_tracker": "Min/Max Tracker",
       "consumption_counter": "Verbrauchszähler",
@@ -1653,7 +1666,7 @@
     "newGraphBtn": "+ Neu",
     "run": "Ausführen",
     "graphDisabledSuffix": " (deaktiviert)",
-    "runTitle": "Graph ausführen",
+    "runTitle": "Berechtigungen prüfen und Graph ausführen",
     "runDisabledTitle": "Graph ist deaktiviert — kein Ausführen möglich",
     "toggleActive": "✓ Aktiv",
     "toggleDisabled": "⊘ Deaktiviert",
@@ -1664,7 +1677,6 @@
     "errorToggle": "Fehler beim Ändern des Status",
     "debugBtn": "Debug",
     "debugInspector": {
-      "title": "Debug-Inspektor",
       "inputs": "Eingänge",
       "outputs": "Ausgänge",
       "incoming": "Eingehender Wert",
@@ -1676,7 +1688,6 @@
       "copyAll": "Nutzdaten kopieren",
       "copy": "Kopieren",
       "copied": "Kopiert!",
-      "close": "Schließen",
       "noValues": "Keine Eingänge",
       "noExecution": "Logikblatt ausführen, um Ausgänge zu prüfen.",
       "timestamp": "Ausgeführt",
@@ -1701,12 +1712,30 @@
     "errorSave": "Fehler beim Speichern",
     "errorLoad": "Fehler beim Laden des Graphen",
     "runResult": "Graph ausgeführt — {count} Nodes evaluiert",
+    "preflightTitle": "Graph-Ausführung prüfen",
+    "preflightDescription": "Prüfe den Graphen und alle externen Auswirkungen vor der Ausführung.",
+    "preflightError": "Die benötigten Berechtigungen konnten nicht geprüft werden.",
+    "preflightGraph": "Graph {id} aktivieren",
+    "preflightGraphState": "Graph ist aktiviert",
+    "preflightCapability": "Capability: {capability}",
+    "preflightDatapoint": "Datenpunkt {id}",
+    "preflightNodes": "Verwendet von Nodes: {nodes}",
+    "preflightReasons": {
+      "explicit_deny": "Eine ausdrückliche Sperre greift.",
+      "missing_allow": "Die benötigte Freigabe fehlt.",
+      "graph_disabled": "Der Graph ist deaktiviert und kann nicht ausgeführt werden.",
+      "undeclared_capability": "Für diesen Seiteneffekt ist keine Capability deklariert; er wird standardmäßig gesperrt."
+    },
     "runResultWithWarnings": "Graph ausgeführt — {count} Nodes geprüft, {warnings} Warnungen",
     "nodeError": "⚠ Fehler",
     "graphValidationCycle": "Zyklus erkannt: {count} Node(s) benötigen eine Speicher-Node als Tick-Grenze.",
     "graphValidationConnectBlocked": "Verbindung nicht erstellt: Zyklus erkannt ({count} Node(s)). Nutze eine Speicher-Node für Rückkopplungen.",
     "graphValidationSaveBlocked": "Speichern blockiert: Zyklus erkannt ({count} Node(s)). Nutze eine Speicher-Node für Rückkopplungen.",
     "graphValidationNodeError": "Zyklus erkannt; direkte Rückkopplung benötigt eine Speicher-Node.",
+    "graphValidationDuplicateHandle": "Mehrfachverbindung erkannt: {count} Eingang/Eingänge haben mehr als eine Verbindung. Nutze eine Klemme-Node, um mehrere Quellen zusammenzuführen.",
+    "graphValidationConnectBlockedDuplicateHandle": "Verbindung nicht erstellt: Dieser Eingang hat bereits eine Verbindung. Nutze eine Klemme-Node, um mehrere Quellen zusammenzuführen.",
+    "graphValidationSaveBlockedDuplicateHandle": "Speichern blockiert: {count} Eingang/Eingänge haben mehr als eine Verbindung. Nutze eine Klemme-Node, um mehrere Quellen zusammenzuführen.",
+    "graphValidationNodeErrorDuplicateHandle": "Mehrfachverbindung erkannt; nur eine Verbindung pro Eingang möglich. Nutze eine Klemme-Node.",
     "duplicated": "Graph dupliziert als „{name}“",
     "errorDuplicate": "Fehler beim Duplizieren",
     "copiedNodes": "{count} Block(e) kopiert",
@@ -1751,6 +1780,7 @@
       "out": "Out",
       "in_n": "IN {n}",
       "data": "Daten",
+      "text": "Text",
       "body": "Body",
       "done": "Fertig",
       "running": "Läuft",
@@ -1778,6 +1808,10 @@
       "inputs": "{n} Eingänge",
       "parts": "{n} Teile",
       "rules": "{n} Regeln",
+      "replaceModes": {
+        "plain": "Plain",
+        "regex": "RegEx"
+      },
       "sequence": "{n} Schritte · {mode}",
       "hold": "→ halten",
       "filters": "{n} Filter",
@@ -1803,6 +1837,10 @@
         "text": "Text",
         "textPlaceholder": "Notiztext…",
         "empty": "Leerer Kommentar — im Panel bearbeiten"
+      },
+      "panelTabs": {
+        "settings": "Einstellungen",
+        "debug": "Debug-Werte"
       },
       "tabs": {
         "connection": "Verbindung",
@@ -1971,6 +2009,24 @@
         "staticHint": "Verbundene Eingänge überschreiben den statischen Text. Leere Felder ergeben einen leeren Teilstring.",
         "inputPlaceholder": "Eingang {n} …"
       },
+      "stringReplace": {
+        "rules": "Regeln",
+        "moveUp": "Regel nach oben",
+        "moveDown": "Regel nach unten",
+        "orderHint": "Die Regeln werden von oben nach unten nacheinander angewendet — jede Regel arbeitet auf dem Ergebnis der vorherigen.",
+        "modes": {
+          "plain": "Suchtext (Plain)",
+          "regex": "Regulärer Ausdruck (RegEx)"
+        },
+        "searchLabel": "Suchen nach",
+        "searchPlaceholder": "z.B. alt",
+        "patternLabel": "RegEx-Muster",
+        "patternPlaceholder": "z.B. (\\d+)",
+        "replaceLabel": "Ersetzen durch",
+        "replacePlaceholder": "leer = Treffer entfernen",
+        "groupHint": "Gruppenverweise wie \\1 oder \\g<name> sind möglich.",
+        "replaceAll": "Alle Vorkommen ersetzen"
+      },
       "rules": {
         "add": "+ Regel",
         "remove": "Regel entfernen",
@@ -2119,6 +2175,13 @@
       "memory": {
         "initial_value": "Initialwert",
         "data_type": "Datentyp",
+        "persist_state": "Zustand nach Neustart wiederherstellen"
+      },
+      "merge": {
+        "input_count": "Anzahl Eingänge",
+        "persist_state": "Zustand nach Neustart wiederherstellen"
+      },
+      "change_filter": {
         "persist_state": "Zustand nach Neustart wiederherstellen"
       },
       "hysteresis": {
@@ -2302,13 +2365,13 @@
         "response_type": "Response Content-Typ",
         "verify_ssl": "SSL-Zertifikat prüfen",
         "headers": "Header (JSON-Objekt, optional)",
-        "headers_secret_file": "Header aus Secret-Datei (JSON-Objekt, optional)",
+        "headers_value_file": "Header aus Datei (JSON-Objekt, optional)",
         "timeout_s": "Timeout (s)",
         "auth_type": "Authentifizierung",
         "auth_username": "Benutzername (Basic/Digest)",
         "auth_password": "Passwort (Basic/Digest)",
         "auth_token": "Bearer Token",
-        "auth_token_file": "Bearer Token aus Secret-Datei"
+        "auth_value_file": "Bearer Token aus Datei"
       },
       "math_formula": {
         "formula": "Formel",
@@ -2380,8 +2443,10 @@
       "xor": "Ausgang ist true wenn GENAU EIN Eingang true ist. Eingänge (2–30) und Ausgang einzeln negierbar.",
       "gate": "Signal-Tor: lässt den Eingang durch wenn Freigabe=true, sperrt sonst. Verhalten bei gesperrtem Tor: letzten Wert halten (retain) oder Standardwert ausgeben.",
       "memory": "Gibt den gespeicherten Wert aus dem vorherigen Logiklauf aus und speichert den aktuellen Eingangswert für den nächsten Lauf. Explizite Tick-Grenze für kontrollierte Rückkopplungen.",
+      "change_filter": "Gibt den Eingangswert aus und setzt den Geändert-Trigger nur dann, wenn er sich vom zuletzt empfangenen Wert unterscheidet. Wiederholt gleiche Werte werden unterdrückt.",
       "compare": "Vergleicht zwei Werte (>, <, =, >=, <=, !=)",
       "hysteresis": "Schaltet bei Überschreitung ON, erst bei Unterschreitung OFF",
+      "merge": "Bündelt mehrere unabhängige Wertquellen auf einen gemeinsamen Ausgang: wer zuletzt einen neuen Wert liefert, wird durchgereicht (Edomi-Klemme).",
       "decision": "Prüft einen Eingangswert gegen mehrere unabhängige Bedingungen. Jeder Ausgang liefert unabhängig TRUE oder FALSE; mehrere Ausgänge können gleichzeitig TRUE sein.",
       "value_mapping": "Prüft eine geordnete Regelliste und gibt den Rückgabewert der ersten passenden Regel aus. Optional liefert ein Sonst-Wert ein Ergebnis, wenn keine Regel passt.",
       "datapoint_read": "Gibt den aktuellen Wert eines DataPoints aus. Triggert bei Wertänderung.",
@@ -2393,11 +2458,12 @@
       "statistics": "Berechnet Min/Max/Mittelwert laufend über alle empfangenen Werte. Reset-Eingang setzt zurück.",
       "avg_multi": "Berechnet den Mittelwert von 2–20 Eingängen (aktuell) und gleitende Mittelwerte über Zeitfenster: 1 min, 1 h, 1 Tag, 7/14/30/180/365 Tage. Jeder neue Wert wird mit Zeitstempel gespeichert. Die Zeitfensterwerte bleiben nach einem Neustart erhalten (konfigurierbar).",
       "string_concat": "Verkettet 2–20 Texte zu einem Ergebnis. Jeder Eingang kann dynamisch verbunden oder statisch vorbelegt sein. Ist ein Eingang verbunden, hat er Vorrang vor dem statischen Text.",
+      "string_replace": "Ersetzt Treffer in einem Text. Mehrere Regeln werden in der angegebenen Reihenfolge nacheinander auf das Zwischenergebnis angewendet. Je Regel wählbar: Suchtext (Plain) oder regulärer Ausdruck (RegEx, Gruppenverweise wie \\1 im Ersetzen-Feld), Gross-/Kleinschreibung und alle oder nur das erste Vorkommen.",
       "heating_circuit": "Sommer/Winter-Umschaltung nach DIN (Mannheimer Methode). Eingang: Aussentemperatur. Messzeitpunkte (Erste-Kreuzung): T1 = anliegender Wert ab 07:00, T2 = ab 14:00, T3 = ab 21:00. Funktioniert auch wenn der Sensor die Messstunden nicht exakt trifft. Jeder Slot wird pro Tag nur einmal erfasst. Tagesmittel: T_avg = (T1 + T2 + 2×T3) / 4. Monatsmittel: gleitender Mittelwert der letzten 31 Tagesmittel. Heizmodus EIN wenn T_avg < Grenztemperatur, AUS wenn T_avg ≥ Grenztemperatur + Hysterese. Fehlende Slots werden beim Start aus der Historie ergänzt. Zustand bleibt über Neustarts erhalten.",
       "min_max_tracker": "Verfolgt Minimum und Maximum über Zeitperioden (täglich, wöchentlich, monatlich, jährlich, absolut). Periodenwerte werden automatisch am Tages-/Wochen-/Monats-/Jahreswechsel zurückgesetzt.",
       "consumption_counter": "Berechnet Verbrauchswerte (täglich, wöchentlich, monatlich, jährlich) aus einem fortlaufenden Zählerwert. Speichert zusätzlich den Verbrauch der Vorperiode für Vergleiche.",
       "timer_delay": "Verzögert ein Signal um N Sekunden",
-      "timer_pulse": "Gibt einen Impuls für N Sekunden aus",
+      "timer_pulse": "Sendet automatisch alle N Sekunden einen Trigger-Impuls.",
       "value_sequence": "Schreibt konfigurierte Werte und Pausen als Sequenz ohne die Logikausführung zu blockieren.",
       "timer_cron": "Löst automatisch nach einem Cron-Zeitplan aus (Minute Stunde Tag Monat Wochentag).",
       "operating_hours": "Zählt Betriebsstunden solange 'Aktiv' wahr ist. Reset setzt den Zähler zurück.",
@@ -2415,6 +2481,13 @@
       "ical": "Lädt ein iCal-/ICS-File von einer URL und wertet Termine aus. RAW-Ausgang liefert den rohen Kalendertext. Pro Filter gibt es 4 Ausgänge: Array (alle Termine), Nächstes Datum, Morgen (Bool), Heute (Bool). Filter können auf Summary, Location und/oder Description angewendet werden.",
       "api_client": "Sendet HTTP-Anfragen (GET/POST/PUT…) an externe APIs. Trigger-Eingang steuert die Ausführung."
     }
+  },
+  "authzPreflight": {
+    "allowed": "Erlaubt",
+    "denied": "Verboten",
+    "ready": "Alle benötigten Berechtigungen sind vorhanden.",
+    "blocked": "Diese Aktion ist wegen fehlender Berechtigungen gesperrt.",
+    "noRequirements": "Es werden keine zusätzlichen Berechtigungen benötigt."
   },
   "settings": {
     "title": "Einstellungen",
@@ -2454,7 +2527,13 @@
       "themeLightDesc": "Helles Erscheinungsbild",
       "themeDark": "Dunkel",
       "themeDarkDesc": "Dunkles Erscheinungsbild",
-      "tzSaved": "Zeitzone auf «{tz}» gesetzt"
+      "tzSaved": "Zeitzone auf «{tz}» gesetzt",
+      "regionFormat": "Regionalformat",
+      "regionFormatHint": "Bestimmt Zahlen-, Währungs- und Datumsformate. Unabhängig von der Sprache — Deutsch in der Schweiz formatiert anders als Deutsch in Deutschland.",
+      "regionFormatAuto": "Automatisch (aus Sprache: {format} · {sample})",
+      "currency": "Währung",
+      "currencyAuto": "Automatisch (aus Regionalformat: {currency})",
+      "formatPreview": "Vorschau"
     },
     "security": {
       "title": "URL-Ziel-Allowlist",
@@ -2584,14 +2663,33 @@
     "users": {
       "deleteUser": "Benutzer löschen",
       "deleteUserConfirm": "Benutzer '{name}' wirklich löschen?",
+      "deleteImpact": "Prüfe vor dem Löschen alle Auswirkungen:",
+      "deletePages": "{n} Visu-Seiten werden übertragen",
+      "deleteGraphs": "{n} Logikblätter werden übertragen",
+      "deleteFiltersets": "{n} RingBuffer-Filtersets werden übertragen",
+      "deleteKeys": "{n} API-Schlüssel werden sofort widerrufen",
+      "deleteReferences": "{n} Zugriffsreferenzen werden entfernt",
+      "successor": "Nachfolger für eigene Artefakte",
+      "selectSuccessor": "Nachfolger auswählen",
+      "deleteKeyWarning": "API-Schlüssel werden nie übertragen. Da der bisherige Inhaber das Geheimnis noch kennen kann, werden sie widerrufen.",
       "count": "{n} Benutzer",
+      "empty": "Keine Benutzer vorhanden",
       "addButton": "+ Benutzer",
       "colUsername": "Benutzername",
       "colAdmin": "Admin",
       "colMqtt": "MQTT",
       "colCreated": "Erstellt",
+      "currentAccount": "Du",
+      "roleAdmin": "Admin",
+      "roleUser": "Benutzer",
+      "status": "Status",
+      "statusCurrent": "Aktuelles Konto",
+      "statusReady": "Bereit",
+      "statusWarning": "MQTT ohne Passwort",
       "mqttActive": "Aktiv",
       "mqttOff": "Aus",
+      "mqttPasswordSetShort": "Passwort gesetzt",
+      "mqttPasswordMissing": "Passwort fehlt",
       "mqttSetTitle": "MQTT-Passwort setzen",
       "mqttDisableTitle": "MQTT deaktivieren",
       "createTitle": "Neuer Benutzer",
@@ -2602,7 +2700,114 @@
       "mqttFor": "Benutzer: {username}",
       "newMqttPassword": "Neues MQTT-Passwort",
       "mqttPasswordSet": "MQTT-Passwort gesetzt",
-      "create": "Erstellen"
+      "create": "Erstellen",
+      "rights": {
+        "openButton": "Rechte bearbeiten",
+        "summary": "{roles} · {n} Bereiche",
+        "summaryNone": "Keine zugewiesenen Bereiche",
+        "title": "Rechte für {username}",
+        "progress": "Fortschritt im Rechte-Editor",
+        "steps": {
+          "role": "Rolle",
+          "scopes": "Bereiche",
+          "preview": "Vorschau",
+          "confirm": "Bestätigen"
+        },
+        "roleTitle": "Rolle auswählen",
+        "roleHint": "Jede Rolle startet mit ihren gespeicherten direkten Zuweisungen; neue Rollen beginnen ohne Bereiche oder Zusatzrechte.",
+        "mixedRoleWarning": "Dieser Benutzer hat derzeit unterschiedliche Rollen in seinen Zuweisungen. Beim Hinzufügen oder Entfernen von Bereichen bleiben fremde Rollen unverändert.",
+        "bulkRoleTitle": "Alle beibehaltenen bestehenden Bereiche neu zuweisen",
+        "bulkRoleHint": "Die ausgewählte Rolle ausdrücklich auf jeden bestehenden Bereich anwenden, der ausgewählt bleibt.",
+        "roles": {
+          "guest": {
+            "label": "Gast",
+            "description": "Nur Lesezugriff."
+          },
+          "resident": {
+            "label": "Bewohner",
+            "description": "Lesen, Schreiben und Aktivieren."
+          },
+          "operator": {
+            "label": "Operator",
+            "description": "Voller Betriebszugriff einschließlich Erzeugen."
+          },
+          "owner": {
+            "label": "Eigentümer",
+            "description": "Alle Aktionen in den ausgewählten Bereichen."
+          }
+        },
+        "scopeTitle": "Hierarchie-Bereiche auswählen",
+        "scopeHint": "Lege pro Bereich fest, ob die Rolle vererbt, ausdrücklich erlaubt oder ausdrücklich verweigert wird.",
+        "scopeStateLabel": "Zugriffszustand für {scope}",
+        "scopeStates": {
+          "inherit": "Vererbt",
+          "allow": "Allow",
+          "deny": "Deny"
+        },
+        "scopeStateCounts": "{allow} Allow · {deny} Deny",
+        "scopeSearchPlaceholder": "Bereiche filtern …",
+        "scopeSearchNoMatch": "Keine passenden Bereiche gefunden.",
+        "noScopes": "Es sind keine Hierarchie-Bereiche verfügbar.",
+        "unknownScope": "Dieser gespeicherte Bereich ist nicht mehr in der Hierarchie-Liste vorhanden.",
+        "deniedScopePreserved": "Für diesen Bereich besteht eine direkte Verbots-Zuweisung, die erhalten bleibt; hier kann keine Erlaubnis hinzugefügt werden.",
+        "orphanedScopeBlock": "{n} ausgewählte Zuweisungen lassen sich keinem Hierarchie-Bereich mehr zuordnen. Entferne sie ausdrücklich oder brich ab; solange sie ausgewählt sind, ist das Speichern gesperrt.",
+        "newScopeRoleRequired": "Wähle eine Rolle aus, bevor du neue Hierarchie-Bereiche hinzufügst.",
+        "selectedScopes": "{n} Bereiche ausgewählt",
+        "logicCreateTitle": "Logikblätter erstellen",
+        "logicCreateHint": "Erlaubt diesem Benutzer, neue Logikblätter zu erstellen, zu importieren und zu duplizieren.",
+        "capabilityUnavailableForRole": "Für die Rolle {role} nicht verfügbar.",
+        "nonStandardLogicGrantPreserved": "Eine bestehende, nicht standardmäßige Zuweisung bleibt als erweitertes Recht erhalten und kann hier nicht geändert werden.",
+        "logicCreateDenied": "Eine direkte Verbots-Zuweisung für das Erstellen von Logikblättern bleibt erhalten und kann hier nicht überschrieben werden.",
+        "logicCreateCentralControl": "Auch Logikblätter für Zentralanlagen erstellen",
+        "centralControl": "Zentralanlagen steuern",
+        "centralControlEnabled": "Zentralsteuerung aktiviert",
+        "centralControlDisabled": "Zentralsteuerung deaktiviert",
+        "centralControlSummary": "Zentralanlagensteuerung je Bereich",
+        "previewTitle": "Effektive Rechte",
+        "previewHint": "Prüfe vor dem Speichern die berechnete Entscheidung und ihre Begründung für jede Aktion.",
+        "emptyPreview": "Es gibt keine bearbeitbaren oder fortgeschrittenen Zuweisungsziele zu prüfen. Eine Server-Vorschau ist nicht erforderlich.",
+        "refreshPreview": "Vorschau aktualisieren",
+        "allowed": "Erlaubt",
+        "denied": "Verboten",
+        "actions": {
+          "read": "Lesen",
+          "write": "Schreiben",
+          "activate": "Aktivieren",
+          "generate": "Erzeugen"
+        },
+        "reasons": {
+          "admin": "Durch die Administrator-Brücke erlaubt.",
+          "allowed": "Durch eine passende Rollenzuweisung erlaubt.",
+          "direct_datapoint_grant": "Durch eine direkte Datenpunkt-Zuweisung erlaubt.",
+          "explicit_deny": "Durch eine ausdrückliche Verbots-Zuweisung verweigert.",
+          "central_control_required": "Verweigert, weil die Zentralanlagensteuerung für diesen Bereich nicht aktiviert ist.",
+          "missing_allow": "Verweigert, weil keine passende Erlaubnis-Zuweisung gilt.",
+          "no_targets": "Verweigert, weil das Ziel nicht aufgelöst werden konnte."
+        },
+        "confirmTitle": "Änderungen bestätigen",
+        "confirmHint": "Beim Speichern werden die bearbeitbaren Zuweisungen atomar ersetzt.",
+        "enabled": "Aktiviert",
+        "disabled": "Deaktiviert",
+        "selectedRole": "Rolle",
+        "roleHandling": "Rollenbehandlung",
+        "roleSummaryBulk": "Alle ausgewählten Bereiche werden der Rolle {role} neu zugewiesen.",
+        "roleSummaryNew": "Bestehende Bereichsrollen bleiben unverändert; neue Bereiche verwenden {role}.",
+        "roleSummaryCurrent": "Direkte Zuweisungen der Rolle {role} werden bearbeitet; andere Rollen bleiben erhalten.",
+        "existingRolesPreserved": "Bestehende Rollen bleiben erhalten",
+        "selectedAreas": "Bereiche",
+        "advancedPreserved": "{n} fortgeschrittene Zuweisungen bleiben unverändert erhalten.",
+        "advancedTitle": "Fortgeschrittene Zuweisungen",
+        "advancedDescription": "{effect} · {role} · {nodeType} · {nodeId}",
+        "advancedTarget": "{nodeType} · {nodeId}",
+        "removeAdvanced": "Entfernen",
+        "back": "Zurück",
+        "next": "Weiter",
+        "save": "Rechte speichern",
+        "loadError": "Die Rechte konnten nicht geladen werden.",
+        "previewError": "Die effektive Vorschau konnte nicht geladen werden.",
+        "saveError": "Die Rechte konnten nicht gespeichert werden.",
+        "concurrentChange": "Die Zuweisungen wurden nach dem Öffnen des Editors geändert. Lade den Editor neu und prüfe vor dem Speichern den aktuellen Stand."
+      }
     },
     "apikeys": {
       "keyName": "API-Key-Name",
@@ -2616,7 +2821,28 @@
       "nameLabel": "Beschreibung / Name",
       "namePlaceholder": "z.B. Home Assistant",
       "create": "Erstellen",
-      "modalTitle": "API Key Name"
+      "modalTitle": "API Key Name",
+      "capabilities": {
+        "open": "Capabilities konfigurieren",
+        "title": "Konfigurations-Capabilities des API-Keys",
+        "target": "Ziel-API-Key: {name}",
+        "warning": "Diese Berechtigungen erlauben dem ausgewählten API-Key Konfiguration zu ändern. Bestehende Zielrechte, Denies und Readonly-Grenzen gelten weiterhin.",
+        "confirm": "Ich bestätige den vollständigen Capability-Ersatz für {name}.",
+        "save": "Capabilities ersetzen",
+        "loadError": "Capabilities konnten nicht geladen werden.",
+        "saveError": "Capabilities konnten nicht gespeichert werden.",
+        "concurrentChange": "Die Capabilities wurden nach dem Öffnen geändert. Lade den aktuellen Stand neu und prüfe ihn.",
+        "effects": {
+          "visu.page_config.write": {
+            "title": "Visu-Seitenkonfiguration schreiben",
+            "description": "Erlaubt nur das Speichern der Konfiguration einer ansonsten beschreibbaren Visu-Seite."
+          },
+          "datapoint.metadata.write": {
+            "title": "DataPoint-Metadaten schreiben",
+            "description": "Erlaubt Metadatenänderungen für DataPoints mit passendem WRITE-Grant; Laufzeitwerte bleiben getrennt."
+          }
+        }
+      }
     },
     "password": {
       "title": "Passwort ändern",
@@ -2923,6 +3149,7 @@
     "success": "Erfolgreich",
     "details": "Details",
     "remove": "Entfernen",
+    "clear": "Leeren",
     "selected": "Ausgewählt",
     "enabled": "Aktiviert",
     "active": "Aktiv",
