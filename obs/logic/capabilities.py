@@ -15,6 +15,15 @@ LOGIC_NODE_CAPABILITIES = {
 LOGIC_CREATE_CAPABILITY = "create_graph"
 """Closed user-only capability for creating disabled Logic graphs."""
 
+PLUGIN_CAPABILITY = "plugin_execution"
+"""Shared capability required to manually run a graph containing any plugin node type.
+
+Plugin node types (obs/logic/plugin_registry.py) are arbitrary third-party code with no
+central review, so — unlike built-in nodes — they are never classified individually.
+obs/logic/registry.py forces every plugin node type to this one capability, overriding
+whatever classification the plugin's own node_type_def() might declare. See
+docs/logic-plugin-api.md for the authorization model plugin authors see."""
+
 # Explicit allowlist: a newly registered node is intentionally left
 # unclassified and therefore denied by Logic run preflight until reviewed.
 PURE_LOGIC_NODE_TYPES = frozenset(
@@ -60,4 +69,4 @@ PURE_LOGIC_NODE_TYPES = frozenset(
     }
 )
 
-LOGIC_CAPABILITIES = frozenset({*LOGIC_NODE_CAPABILITIES.values(), LOGIC_CREATE_CAPABILITY})
+LOGIC_CAPABILITIES = frozenset({*LOGIC_NODE_CAPABILITIES.values(), LOGIC_CREATE_CAPABILITY, PLUGIN_CAPABILITY})

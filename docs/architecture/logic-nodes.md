@@ -143,7 +143,13 @@ developed in parallel keep working. New code imports from `obs.logic.registry`.
 
 `get_node_type()` and `list_node_types()` are also the intended merge point for dynamically
 discovered (non-built-in) node types: such a lookup extends these two functions in `registry.py`
-and nothing else.
+and nothing else. The one existing dynamic source, `obs/logic/plugin_registry.py` (see
+[docs/logic-plugin-api.md](../logic-plugin-api.md)), follows this: `_classify_plugin_node_type()`
+in `registry.py` forces every plugin-contributed `NodeTypeDef` to
+`has_external_side_effect=True` with the shared `PLUGIN_CAPABILITY` from
+`obs/logic/capabilities.py`, overriding whatever the plugin itself declares — plugin code has no
+central review the way built-in nodes do, so unlike `_classify_node_type()` above it never trusts
+or rejects a self-declared classification, only ever overrides it.
 
 ## Execution
 

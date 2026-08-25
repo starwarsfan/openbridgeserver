@@ -133,7 +133,7 @@ def test_registry_only_combines_category_registries():
     tree = _parse(REGISTRY_PATH)
 
     defined = [node.name for node in tree.body if isinstance(node, ast.FunctionDef)]
-    assert defined == ["_classify_node_type", "_build_catalogue", "get_node_type", "list_node_types"]
+    assert defined == ["_classify_node_type", "_build_catalogue", "_classify_plugin_node_type", "get_node_type", "list_node_types"]
 
     for imported in _imported_modules(tree):
         if imported.startswith("obs.logic.nodes"):

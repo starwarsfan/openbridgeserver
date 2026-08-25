@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from obs.logic import plugin_registry
+from obs.logic.capabilities import PLUGIN_CAPABILITY
 from obs.logic.models import NodeTypeDef
 from obs.logic.node_types import BUILTIN_NODE_TYPES, get_node_type, list_node_types
 from obs.logic.plugin_api import LogicNodePlugin, register_node_type
@@ -48,6 +49,16 @@ def test_get_node_type_returns_plugin(dummy_plugin):
     assert nt is not None
     assert nt.type == PLUGIN_TYPE
     assert nt.label == "Dummy"
+    # Every plugin node type is always classified into the shared authorization
+    # bucket by obs/logic/registry.py — see docs/logic-plugin-api.md.
+    assert nt.has_external_side_effect is True
+    assert nt.required_capability == PLUGIN_CAPABILITY
+
+
+def test_list_node_types_classifies_plugins_with_the_shared_capability(dummy_plugin):
+    (nt,) = [t for t in list_node_types() if t.type == PLUGIN_TYPE]
+    assert nt.has_external_side_effect is True
+    assert nt.required_capability == PLUGIN_CAPABILITY
 
 
 def test_get_node_type_unknown_returns_none():

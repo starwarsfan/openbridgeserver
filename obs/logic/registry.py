@@ -13,7 +13,7 @@ catalogue. See ``docs/architecture/logic-nodes.md``.
 
 from __future__ import annotations
 
-from obs.logic.capabilities import LOGIC_NODE_CAPABILITIES, PURE_LOGIC_NODE_TYPES
+from obs.logic.capabilities import LOGIC_NODE_CAPABILITIES, PLUGIN_CAPABILITY, PURE_LOGIC_NODE_TYPES
 from obs.logic.models import NodeTypeDef
 from obs.logic.nodes.ai import NODE_TYPES as AI_NODE_TYPES
 from obs.logic.nodes.astro import NODE_TYPES as ASTRO_NODE_TYPES
@@ -90,6 +90,17 @@ BUILTIN_NODE_TYPES: list[NodeTypeDef] = _build_catalogue(BUILTIN_NODE_CATEGORIES
 NODE_TYPE_REGISTRY: dict[str, NodeTypeDef] = {nt.type: nt for nt in BUILTIN_NODE_TYPES}
 
 
+def _classify_plugin_node_type(node_type: NodeTypeDef) -> NodeTypeDef:
+    """Force a plugin-contributed node type into the shared plugin authorization bucket.
+
+    Plugin node types (obs/logic/plugin_registry.py) are arbitrary third-party code with
+    no central review, unlike built-ins — so, unlike ``_classify_node_type``, this always
+    overrides the classification rather than trusting or rejecting a self-declared one.
+    See ``PLUGIN_CAPABILITY`` in obs/logic/capabilities.py and docs/logic-plugin-api.md.
+    """
+    return node_type.model_copy(update={"has_external_side_effect": True, "required_capability": PLUGIN_CAPABILITY})
+
+
 def get_node_type(type_: str) -> NodeTypeDef | None:
     """Return the definition of a single node type, or ``None`` if unknown.
 
@@ -101,7 +112,9 @@ def get_node_type(type_: str) -> NodeTypeDef | None:
     from obs.logic.plugin_registry import get_plugin_node_type
 
     cls = get_plugin_node_type(type_)
-    return cls.node_type_def() if cls is not None else None
+    if cls is None:
+        return None
+    return _classify_plugin_node_type(cls.node_type_def())
 
 
 def list_node_types() -> list[NodeTypeDef]:
@@ -111,7 +124,7 @@ def list_node_types() -> list[NodeTypeDef]:
     """
     from obs.logic.plugin_registry import get_all_plugin_node_type_defs
 
-    return BUILTIN_NODE_TYPES + get_all_plugin_node_type_defs()
+    return BUILTIN_NODE_TYPES + [_classify_plugin_node_type(nt) for nt in get_all_plugin_node_type_defs()]
 
 
 __all__ = [

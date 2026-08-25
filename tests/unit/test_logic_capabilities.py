@@ -13,8 +13,10 @@ from obs.api.authz import AuthzTarget, RoleGrant
 from obs.api.v1 import authz as authz_api
 from obs.api.v1 import logic as logic_api
 from obs.db.database import Database
-from obs.logic.capabilities import LOGIC_CAPABILITIES, LOGIC_CREATE_CAPABILITY, LOGIC_NODE_CAPABILITIES, PURE_LOGIC_NODE_TYPES
+from obs.logic import plugin_registry
+from obs.logic.capabilities import LOGIC_CAPABILITIES, LOGIC_CREATE_CAPABILITY, LOGIC_NODE_CAPABILITIES, PLUGIN_CAPABILITY, PURE_LOGIC_NODE_TYPES
 from obs.logic.models import LogicGraphCreate, LogicGraphImport, LogicGraphUpdate, NodeTypeDef
+from obs.logic.plugin_api import LogicNodePlugin, register_node_type
 from obs.logic.registry import NODE_TYPE_REGISTRY, _classify_node_type
 from obs.models.authz import AuthzPrincipalGrant
 
@@ -90,7 +92,7 @@ def test_privileged_node_types_publish_stable_capabilities() -> None:
         "wake_on_lan": "wake_on_lan",
     }
 
-    assert LOGIC_CAPABILITIES == frozenset({*expected.values(), LOGIC_CREATE_CAPABILITY})
+    assert LOGIC_CAPABILITIES == frozenset({*expected.values(), LOGIC_CREATE_CAPABILITY, PLUGIN_CAPABILITY})
     assert LOGIC_CREATE_CAPABILITY not in LOGIC_NODE_CAPABILITIES.values()
     for node_type, capability in expected.items():
         definition = NODE_TYPE_REGISTRY[node_type]
@@ -285,6 +287,78 @@ async def test_preflight_default_denies_side_effect_without_capability(
     assert denied["malformed_side_effect"].reason == "undeclared_capability"
     assert denied["unknown_node"].node_ids == ["unknown"]
     assert denied["unknown_node"].reason == "undeclared_capability"
+
+
+@pytest.fixture
+def dummy_plugin():
+    """Register a throwaway plugin node type that tries to declare itself pure.
+
+    Mirrors tests/unit/test_node_types_lookup.py's fixture of the same name —
+    duplicated here so this module's authz-focused tests stay self-contained.
+    """
+
+    @register_node_type
+    class PureLiar(LogicNodePlugin):
+        type_name = "test_plugin_pure_liar"
+
+        @classmethod
+        def node_type_def(cls) -> NodeTypeDef:
+            # A plugin cannot opt out of PLUGIN_CAPABILITY by declaring itself
+            # pure — obs/logic/registry.py must override this regardless.
+            return NodeTypeDef(
+                type=cls.type_name,
+                label="Pure Liar",
+                category="integration",
+                has_external_side_effect=False,
+            )
+
+        @classmethod
+        def evaluate(cls, node_id, inputs, config, state):
+            return {}, state
+
+    yield PureLiar
+    plugin_registry._unregister("test_plugin_pure_liar")
+
+
+def test_plugin_node_types_are_always_classified_with_the_shared_capability(dummy_plugin) -> None:
+    from obs.logic.registry import get_node_type as registry_get_node_type
+    from obs.logic.registry import list_node_types as registry_list_node_types
+
+    single = registry_get_node_type("test_plugin_pure_liar")
+    assert single is not None
+    assert single.has_external_side_effect is True
+    assert single.required_capability == PLUGIN_CAPABILITY
+
+    (from_list,) = [nt for nt in registry_list_node_types() if nt.type == "test_plugin_pure_liar"]
+    assert from_list.has_external_side_effect is True
+    assert from_list.required_capability == PLUGIN_CAPABILITY
+
+
+@pytest.mark.asyncio
+async def test_preflight_denies_plugin_node_without_grant_and_allows_with_grant(
+    db: Database,
+    dummy_plugin,
+) -> None:
+    row = await _insert_graph(db, "graph-plugin", [_node("plugin", "test_plugin_pure_liar")])
+    await _grant(db, "logic_graph", "graph-plugin")
+
+    denied_preflight = await logic_api._logic_run_preflight(
+        db,
+        Principal(subject="alice", type="user", is_admin=False),
+        row,
+    )
+    assert denied_preflight.allowed is False
+    denied = next(check for check in denied_preflight.checks if check.target_id == PLUGIN_CAPABILITY)
+    assert denied.node_ids == ["plugin"]
+    assert denied.reason == "missing_allow"
+
+    await _grant(db, "logic_capability", PLUGIN_CAPABILITY)
+    allowed_preflight = await logic_api._logic_run_preflight(
+        db,
+        Principal(subject="alice", type="user", is_admin=False),
+        row,
+    )
+    assert allowed_preflight.allowed is True
 
 
 @pytest.mark.asyncio
