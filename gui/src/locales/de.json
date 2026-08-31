@@ -126,7 +126,24 @@
       "persistValueHint": "nach Neustart sofort verfügbar",
       "recordHistory": "Historisierung aktiv",
       "recordHistoryHint": "Werte in der Historie-DB speichern",
-      "saveError": "Fehler beim Speichern"
+      "externalWriteEnabled": "Externes Schreiben erlauben",
+      "externalWriteEnabledHint": "jeder MQTT-Client mit Broker-Zugriff kann diesen Wert dann setzen",
+      "saveError": "Fehler beim Speichern",
+      "unitCategories": {
+        "temperature": "Temperatur",
+        "humidityAirQuality": "Feuchte & Luftqualität",
+        "pressure": "Druck",
+        "electricity": "Elektrizität",
+        "light": "Licht",
+        "speedAcceleration": "Geschwindigkeit & Beschleunigung",
+        "angle": "Winkel",
+        "volumeFlow": "Volumen & Durchfluss",
+        "lengthArea": "Länge & Fläche",
+        "mass": "Masse",
+        "time": "Zeit",
+        "radiation": "Strahlung",
+        "other": "Sonstiges"
+      }
     },
     "delete": {
       "confirm": "Objekt wirklich löschen?",
@@ -151,7 +168,7 @@
     "duplicate": {
       "action": "Duplizieren",
       "title": "Objekt duplizieren",
-      "hint": "Alle Eigenschaften und Adapter-Verknüpfungen werden kopiert. Aktuelle Werte und Historie werden nicht übernommen.",
+      "hint": "Alle Eigenschaften und Adapter-Verknüpfungen werden kopiert, mit Ausnahme der Zentraltechnik-Einstufung und der externen Schreibfreigabe — beide sind bei der Kopie immer deaktiviert. Aktuelle Werte und Historie werden nicht übernommen.",
       "defaultName": "Kopie von {name}",
       "saving": "Wird dupliziert …",
       "error": "Das Objekt konnte nicht dupliziert werden."
@@ -1622,6 +1639,7 @@
       "gate": "TOR",
       "memory": "Speicher",
       "change_filter": "Änderungsfilter",
+      "edge_detect": "Flankenerkennung",
       "compare": "Vergleich",
       "hysteresis": "Hysterese",
       "merge": "Klemme",
@@ -1772,6 +1790,8 @@
       "value": "Wert",
       "trigger": "Trigger",
       "changed": "Geändert",
+      "rising": "Trigger-Steigend",
+      "falling": "Trigger-Fallend",
       "object": "Objekt",
       "result": "Ergebnis",
       "enable": "Freigabe",
@@ -2151,7 +2171,10 @@
       },
       "invalidJson": "Ungültiges JSON: {msg}",
       "common": {
-        "optional": "(optional)"
+        "optional": "(optional)",
+        "boolTrue": "Wahr",
+        "boolFalse": "Falsch",
+        "unsetEnum": "Nicht gesetzt"
       },
       "const_value": {
         "value": "Wert",
@@ -2182,6 +2205,29 @@
         "persist_state": "Zustand nach Neustart wiederherstellen"
       },
       "change_filter": {
+        "persist_state": "Zustand nach Neustart wiederherstellen"
+      },
+      "edge_detect": {
+        "on_rising": "Steigende Flanke",
+        "on_risingOptions": {
+          "value": "Trigger + Wert",
+          "trigger": "Nur Trigger",
+          "off": "Aus"
+        },
+        "value_rising": "Wert bei steigender Flanke",
+        "on_falling": "Fallende Flanke",
+        "on_fallingOptions": {
+          "value": "Trigger + Wert",
+          "trigger": "Nur Trigger",
+          "off": "Aus"
+        },
+        "value_falling": "Wert bei fallender Flanke",
+        "data_type": "Datentyp",
+        "data_typeOptions": {
+          "bool": "Boolean",
+          "number": "Zahl",
+          "string": "Text"
+        },
         "persist_state": "Zustand nach Neustart wiederherstellen"
       },
       "hysteresis": {
@@ -2444,6 +2490,7 @@
       "gate": "Signal-Tor: lässt den Eingang durch wenn Freigabe=true, sperrt sonst. Verhalten bei gesperrtem Tor: letzten Wert halten (retain) oder Standardwert ausgeben.",
       "memory": "Gibt den gespeicherten Wert aus dem vorherigen Logiklauf aus und speichert den aktuellen Eingangswert für den nächsten Lauf. Explizite Tick-Grenze für kontrollierte Rückkopplungen.",
       "change_filter": "Gibt den Eingangswert aus und setzt den Geändert-Trigger nur dann, wenn er sich vom zuletzt empfangenen Wert unterscheidet. Wiederholt gleiche Werte werden unterdrückt.",
+      "edge_detect": "Wertet den Eingang boolesch aus und reagiert auf den Wechsel: Bei steigender Flanke (falsch → wahr) wird der Wert für steigende Flanken ausgegeben und der Steigend-Trigger gesetzt, bei fallender Flanke (wahr → falsch) entsprechend der Wert für fallende Flanken und der Fallend-Trigger. Ohne Flanke wird nichts auf den Ausgang gesendet.",
       "compare": "Vergleicht zwei Werte (>, <, =, >=, <=, !=)",
       "hysteresis": "Schaltet bei Überschreitung ON, erst bei Unterschreitung OFF",
       "merge": "Bündelt mehrere unabhängige Wertquellen auf einen gemeinsamen Ausgang: wer zuletzt einen neuen Wert liefert, wird durchgereicht (Edomi-Klemme).",
@@ -3353,5 +3400,12 @@
       "acknowledged": "Quittiert",
       "closed": "Geschlossen"
     }
+  },
+  "help": {
+    "title": "Hilfe",
+    "openLabel": "Hilfe zu diesem Bereich öffnen",
+    "unavailable": "Für diesen Bereich ist noch keine Hilfe verfügbar.",
+    "systemUnavailable": "Die Hilfe-Inhalte sind auf diesem Server aktuell nicht verfügbar.",
+    "openInNewTab": "In neuem Tab öffnen"
   }
 }

@@ -11,8 +11,10 @@
              instead of crowding the title. -->
         <h2 :class="[titleSpacerClass, 'flex-shrink-0 overflow-hidden whitespace-nowrap text-sm font-bold text-slate-800 dark:text-slate-100']">{{ $t('logic.title') }}</h2>
         <!-- Logikblatt selector -->
-        <select v-model="activeGraphId" @change="loadGraph"
-          class="input text-xs py-1 px-2 max-w-[200px]" data-testid="select-graph">
+        <select ref="graphSelectEl" v-model="activeGraphId" @change="loadGraph"
+          class="input text-xs py-1 px-2 flex-shrink-0"
+          :style="{ width: graphSelectWidthCh + 'ch', maxWidth: '280px' }"
+          data-testid="select-graph">
           <option value="">{{ $t('logic.selectGraph') }}</option>
           <option v-for="g in store.graphs" :key="g.id" :value="g.id">{{ g.name }}{{ g.enabled ? '' : $t('logic.graphDisabledSuffix') }}</option>
         </select>
@@ -127,6 +129,7 @@
           {{ $t('common.delete') }}
         </button>
       </div>
+      <HelpButton help-id="logic-toolbar" class="flex-shrink-0" />
     </div>
 
     <!-- Main area -->
@@ -146,6 +149,7 @@
              flex column: a normal-flow bar here would grow/shrink the whole
              toolbar-below area on every message, shoving the palette, canvas
              and properties panel up and down while editing. -->
+        <HelpButton help-id="logic-canvas" class="absolute top-2 right-2 z-30" />
         <div v-if="statusMsg" :class="['absolute top-0 inset-x-0 z-20 px-4 py-1.5 text-xs pointer-events-none', statusMsg.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400']" data-testid="status-msg">
           {{ statusMsg.text }}
         </div>
@@ -301,6 +305,7 @@ import ActionPreflightDialog from '@/components/authz/ActionPreflightDialog.vue'
 import Modal               from '@/components/ui/Modal.vue'
 import ConfirmDialog       from '@/components/ui/ConfirmDialog.vue'
 import Spinner             from '@/components/ui/Spinner.vue'
+import HelpButton          from '@/components/ui/HelpButton.vue'
 
 // Node components
 import GenericNode      from '@/components/logic/nodes/GenericNode.vue'
@@ -413,7 +418,7 @@ const _builtinTypeComponents = {
   comment: _comment,
   // Logic
   and: _generic, or: _generic, not: _generic, xor: _generic, gate: _generic, memory: _generic, merge: _generic,
-  change_filter: _generic,
+  change_filter: _generic, edge_detect: _generic,
   compare: _generic, hysteresis: _generic, decision: _generic, value_mapping: _generic,
   // Math
   math_formula: _generic, math_map: _generic,
@@ -454,6 +459,42 @@ const nodeTypeComponents = computed(() => {
 // ── Active graph ───────────────────────────────────────────────────────────
 const activeGraphId = ref('')
 const activeGraph   = computed(() => store.graphs.find(g => g.id === activeGraphId.value))
+
+// Sized to the longest visible option text (in `ch` units) so the graph-name
+// select never shrinks below what's needed to show the selected name — a flex
+// item's default min-width:auto lets a <select> collapse to just its dropdown
+// arrow under space pressure otherwise, hiding the graph name entirely.
+const graphSelectEl = ref(null)
+let _measureCtx // lazily created, reused across computations
+// 1ch is only as wide as the "0" glyph — in a proportional font a shorter
+// but wide-glyph name (e.g. many uppercase letters, CJK) can need more
+// pixels than a longer narrow-glyph one, so plain text.length undercounts
+// it and clips the option text (Codex review on PR #1172). Measuring against
+// the select's own computed font gives the real rendered width instead.
+function measureTextPx(text, font) {
+  if (_measureCtx === undefined) {
+    _measureCtx = document.createElement('canvas').getContext('2d')
+  }
+  if (!_measureCtx) return null
+  _measureCtx.font = font
+  return _measureCtx.measureText(text).width
+}
+
+const graphSelectWidthCh = computed(() => {
+  const texts = [
+    t('logic.selectGraph'),
+    ...store.graphs.map(g => g.name + (g.enabled ? '' : t('logic.graphDisabledSuffix'))),
+  ]
+  const el = graphSelectEl.value
+  const font = el ? getComputedStyle(el).font : ''
+  const chPx = font ? measureTextPx('0', font) : null
+  if (chPx) {
+    const widestPx = texts.reduce((max, text) => Math.max(max, measureTextPx(text, font)), 0)
+    return Math.min(Math.max(Math.ceil(widestPx / chPx), 12), 40)
+  }
+  const longest = texts.reduce((max, text) => Math.max(max, text.length), 0)
+  return Math.min(Math.max(longest, 12), 40)
+})
 
 // ── Edge options — animated only when graph is enabled ─────────────────────
 const defaultEdgeOptions = computed(() => {
