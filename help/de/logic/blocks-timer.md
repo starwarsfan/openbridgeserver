@@ -32,10 +32,12 @@ dieselben Formatierungs-Tokens wie unter **Einstellungen → Allgemein** (`d`/`d
 
 Verzögert ein Trigger-Signal um eine konfigurierte Anzahl Sekunden, bevor es am Ausgang erscheint.
 
-## Impuls {#logic-block-timer-pulse}
+## Takt {#logic-block-timer-pulse}
 
-Gibt bei einem Trigger-Signal einen Impuls aus, der für eine konfigurierte Dauer (Sekunden)
-anliegt.
+Sendet automatisch alle konfigurierten **Intervall**-Sekunden einen Trigger-Impuls — ohne
+Eingang, läuft selbstständig im Hintergrund. Damit lassen sich Abläufe im Sekundenbereich
+auslösen, für die ein Cron-Zeitplan (minutengenau) zu grob wäre, z. B. eine sanft wechselnde
+Beleuchtung.
 
 ## Betriebsstunden {#logic-block-operating-hours}
 

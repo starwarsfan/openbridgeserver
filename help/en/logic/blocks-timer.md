@@ -31,9 +31,11 @@ Outputs the current date and time in the configured application timezone (**Date
 
 Delays a trigger signal by a configured number of seconds before it appears at the output.
 
-## Pulse {#logic-block-timer-pulse}
+## Tick {#logic-block-timer-pulse}
 
-Outputs a pulse on a trigger signal, held for a configured duration (seconds).
+Automatically fires a trigger pulse every configured **interval** seconds — no input, runs on
+its own in the background. Useful for triggering sub-minute cadences a cron schedule
+(minute-granularity) is too coarse for, e.g. a smoothly changing light.
 
 ## Operating Hours {#logic-block-operating-hours}
 
