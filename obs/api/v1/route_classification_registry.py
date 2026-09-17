@@ -24,6 +24,9 @@ PUBLIC_ROUTE_ALLOWLIST: Final[frozenset[RouteSignature]] = frozenset(
         ("GET", "/api/v1/system/health"),
         # Display formatting for the Visu, which is served to anonymous/PIN users (#1073).
         ("GET", "/api/v1/system/display-settings"),
+        # First-run setup (#1229): tells the Admin GUI whether the installation
+        # still has to be claimed. Reachable before any principal can exist.
+        ("GET", "/api/v1/setup/status"),
     }
 )
 
@@ -41,6 +44,8 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("DELETE", "/api/v1/datapoints/{dp_id}"): "config_mutation",
     ("DELETE", "/api/v1/datapoints/{dp_id}/bindings/{binding_id}"): "config_mutation",
     ("DELETE", "/api/v1/hierarchy/links"): "config_mutation",
+    ("DELETE", "/api/v1/hierarchy/logic-graph-links"): "config_mutation",
+    ("DELETE", "/api/v1/hierarchy/logic-graph-links/{link_id}"): "config_mutation",
     ("DELETE", "/api/v1/hierarchy/nodes/{node_id}"): "config_mutation",
     ("DELETE", "/api/v1/hierarchy/trees/{tree_id}"): "config_mutation",
     ("DELETE", "/api/v1/icons/"): "config_mutation",
@@ -91,9 +96,12 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("GET", "/api/v1/datapoints/{dp_id}/bindings"): "read_live",
     ("GET", "/api/v1/datapoints/{dp_id}/knx-context"): "read_live",
     ("GET", "/api/v1/datapoints/{dp_id}/value"): "read_live",
+    ("GET", "/api/v1/hierarchy/browse"): "read_live",
     ("GET", "/api/v1/hierarchy/datapoints/{dp_id}/nodes"): "read_live",
+    ("GET", "/api/v1/hierarchy/logic-graphs/{graph_id}/nodes"): "read_live",
     ("GET", "/api/v1/hierarchy/nodes/search"): "read_live",
     ("GET", "/api/v1/hierarchy/nodes/{node_id}/datapoints"): "read_live",
+    ("GET", "/api/v1/hierarchy/nodes/{node_id}/logic-graphs"): "read_live",
     ("GET", "/api/v1/hierarchy/trees"): "read_live",
     ("GET", "/api/v1/hierarchy/trees/{tree_id}/nodes"): "read_live",
     ("GET", "/api/v1/history/{dp_id}"): "read_history",
@@ -131,6 +139,7 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("GET", "/api/v1/system/adapters"): "read_live",
     ("GET", "/api/v1/system/datatypes"): "read_live",
     ("GET", "/api/v1/system/display-settings"): "public",
+    ("GET", "/api/v1/setup/status"): "public",
     ("GET", "/api/v1/system/health"): "public",
     ("GET", "/api/v1/system/history/settings"): "read_live",
     ("GET", "/api/v1/system/log-level"): "read_live",
@@ -170,6 +179,7 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("POST", "/api/v1/adapters/{adapter_type}/test"): "config_mutation",
     ("POST", "/api/v1/auth/apikeys"): "config_mutation",
     ("POST", "/api/v1/auth/login"): "config_mutation",
+    ("POST", "/api/v1/setup/owner"): "config_mutation",
     ("POST", "/api/v1/auth/me/change-password"): "config_mutation",
     ("POST", "/api/v1/auth/refresh"): "config_mutation",
     ("POST", "/api/v1/auth/users"): "config_mutation",
@@ -185,6 +195,7 @@ ROUTE_CLASSIFICATIONS: Final[dict[RouteSignature, RouteCategory]] = {
     ("POST", "/api/v1/datapoints/{dp_id}/value"): "data_mutation",
     ("POST", "/api/v1/hierarchy/import-from-ets"): "config_mutation",
     ("POST", "/api/v1/hierarchy/links"): "config_mutation",
+    ("POST", "/api/v1/hierarchy/logic-graph-links"): "config_mutation",
     ("POST", "/api/v1/hierarchy/nodes"): "config_mutation",
     ("POST", "/api/v1/hierarchy/trees"): "config_mutation",
     ("POST", "/api/v1/icons/export"): "config_mutation",

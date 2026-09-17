@@ -14,4 +14,5 @@ NODE_TYPE = NodeTypeDef(
     outputs=[port("trigger", "Trigger", "trigger")],
     config_schema={"interval_s": {"type": "number", "default": 5.0, "min": 0, "label": "Interval (s)"}},
     color="#b45309",
+    help_id="logic-block-timer-pulse",
 )
